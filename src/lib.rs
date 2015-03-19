@@ -1,3 +1,65 @@
+//! rust-sessions
+//!
+//! This is an implementation of *session types* in Rust.
+//!
+//! The channels in Rusts standard library are useful for a great many things,
+//! but they're restricted to a single type. Session types allows one to use a
+//! single channel for transferring values of different types, depending on the
+//! context in which it is used. Specifically, a session typed channel always
+//! carry a *protocol*, which dictates how communication is to take place.
+//!
+//! For example, imagine that two threads, `A` and `B` want to communicate with the following pattern:
+//!
+//!  1. `A` sends an integer to `B`.
+//!  2. `B` sends a boolean to `A` depending on the integer received.
+//!
+//! With session types, this could be done by sharing a single channel. From
+//! `A`'s point of view, it would have the type `int ! (bool ? eps)` where `t ! r`
+//! is the protocol "send something of type `t` then proceed with
+//! protocol `r`", the protocol `t ? r` is "receive something of type `t` then proceed
+//! with protocol `r`, and `eps` is a special marker indicating the end of a
+//! communication session.
+//!
+//! Our session type library allows the user to create channels that adhere to a
+//! specified protocol. For example, a channel like the above would have the type
+//! `Chan<(), Send<i64, Recv<bool, Eps>>>`, and the full program could look like this:
+//!
+//! ```
+//! extern crate "rust-sessions" as sessions;
+//! use sessions::*;
+//!
+//! type Server = Recv<i64, Send<bool, Eps>>;
+//! type Client = Send<i64, Recv<bool, Eps>>;
+//!
+//! fn srv(c: Chan<(), Server>) {
+//!     let (c, n) = c.recv();
+//!     if n % 2 == 0 {
+//!         c.send(true).close()
+//!     } else {
+//!         c.send(false).close()
+//!     }
+//! }
+//!
+//! fn cli(c: Chan<(), Client>) {
+//!     let n = 42;
+//!     let c = c.send(n);
+//!     let (c, b) = c.recv();
+//!
+//!     if b {
+//!         println!("{} is even", n);
+//!     } else {
+//!         println!("{} is odd", n);
+//!     }
+//!
+//!     c.close();
+//! }
+//!
+//! fn main() {
+//!     connect(srv, cli);
+//! }
+//! ```
+
+
 #![feature(std_misc)]
 
 use std::marker;
