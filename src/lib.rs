@@ -99,8 +99,6 @@ pub struct Choose<R,S> ( PhantomData<(R, S)> );
 
 pub struct Offer<R,S> ( PhantomData<(R, S)> );
 
-pub struct OfferTrait<T> ( PhantomData<T> );
-
 pub struct Rec<R> ( PhantomData<R> );
 
 pub struct Var<V> ( PhantomData<V> );
