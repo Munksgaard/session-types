@@ -75,12 +75,16 @@ use std::marker::{PhantomData, PhantomFn};
 /// containing potential recursion targets
 pub struct Chan<E, T> (Sender<Box<u8>>, Receiver<Box<u8>>, PhantomData<(E, T)>);
 
-fn unsafe_write_chan<A: marker::Send + 'static, E, T>(&Chan(ref tx, _, _): &Chan<E, T>, x: A) {
+fn unsafe_write_chan<A: marker::Send + 'static, E, T>
+    (&Chan(ref tx, _, _): &Chan<E, T>, x: A)
+{
     let tx: &Sender<Box<A>> = unsafe { transmute(tx) };
     tx.send(Box::new(x)).unwrap();
 }
 
-fn unsafe_read_chan<A: marker::Send + 'static, E, T>(&Chan(_, ref rx, _): &Chan<E, T>) -> A {
+fn unsafe_read_chan<A: marker::Send + 'static, E, T>
+    (&Chan(_, ref rx, _): &Chan<E, T>) -> A
+{
     let rx: &Receiver<Box<A>> = unsafe { transmute(rx) };
     *rx.recv().unwrap()
 }
@@ -251,7 +255,8 @@ impl<E, R, S> Chan<E, Offer<R, S>> {
 }
 
 impl<E, R> Chan<E, Rec<R>> {
-    /// Enter a recursive environment, putting the current environment on the top of the environment stack.
+    /// Enter a recursive environment, putting the current environment on the
+    /// top of the environment stack.
     pub fn enter(self) -> Chan<(R, E), R> {
         unsafe { transmute(self) }
     }
@@ -275,7 +280,8 @@ impl<E, R, V> Chan<(R, E), Var<S<V>>> {
 /// protocol (and in the exact same point of the protocol), wait for one of them
 /// to receive. Removes the receiving channel from the vector and returns both
 /// the channel and the new vector.
-pub fn hselect<E, P, A>(mut chans: Vec<Chan<E, Recv<A, P>>>) -> (Chan<E, Recv<A, P>>, Vec<Chan<E, Recv<A, P>>>)
+pub fn hselect<E, P, A>(mut chans: Vec<Chan<E, Recv<A, P>>>)
+                        -> (Chan<E, Recv<A, P>>, Vec<Chan<E, Recv<A, P>>>)
 {
     let i = iselect(&chans);
     let c = chans.remove(i);
@@ -387,11 +393,15 @@ impl<'c> ChanSelect<'c, usize> {
 
 /// Sets up an session typed communication channel. Should be paired with
 /// `request` for the corresponding client.
-pub fn accept<E: marker::Send + 'static, R: marker::Send + 'static>(tx: Sender<Chan<E, R>>) -> Option<Chan<E, R>> {
+pub fn accept<E: marker::Send + 'static, R: marker::Send + 'static>
+    (tx: Sender<Chan<E, R>>) -> Option<Chan<E, R>>
+{
     borrow_accept(&tx)
 }
 
-pub fn borrow_accept<E: marker::Send + 'static, R: marker::Send + 'static>(tx: &Sender<Chan<E, R>>) -> Option<Chan<E, R>> {
+pub fn borrow_accept<E: marker::Send + 'static, R: marker::Send + 'static>
+    (tx: &Sender<Chan<E, R>>) -> Option<Chan<E, R>>
+{
     let (tx1, rx1) = channel();
     let (tx2, rx2) = channel();
 
@@ -406,14 +416,16 @@ pub fn borrow_accept<E: marker::Send + 'static, R: marker::Send + 'static>(tx: &
 
 /// Sets up an session typed communication channel. Should be paired with
 /// `accept` for the corresponding server.
-pub fn request<E: marker::Send + 'static, E_, R: marker::Send + 'static, S>(rx: Receiver<Chan<E, R>>) -> Option<Chan<E_, S>>
+pub fn request<E: marker::Send + 'static, E_, R: marker::Send + 'static, S>
+    (rx: Receiver<Chan<E, R>>) -> Option<Chan<E_, S>>
     where (R, S): Dual,
           (E, E_): EnvDual
 {
     borrow_request(&rx)
 }
 
-pub fn borrow_request<E: marker::Send + 'static, E_, R: marker::Send + 'static, S>(rx: &Receiver<Chan<E, R>>) -> Option<Chan<E_, S>>
+pub fn borrow_request<E: marker::Send + 'static, E_, R: marker::Send + 'static, S>
+    (rx: &Receiver<Chan<E, R>>) -> Option<Chan<E_, S>>
     where (R, S): Dual,
           (E, E_): EnvDual
 {
@@ -424,7 +436,8 @@ pub fn borrow_request<E: marker::Send + 'static, E_, R: marker::Send + 'static, 
 }
 
 /// Returns two session channels
-pub fn session_channel<E: marker::Send + 'static, E_, R: marker::Send + 'static, S>() -> (Chan<E, R>, Chan<E_, S>)
+pub fn session_channel<E: marker::Send + 'static, E_, R: marker::Send + 'static, S>
+    () -> (Chan<E, R>, Chan<E_, S>)
     where (R, S): Dual,
           (E, E_): EnvDual
 {
@@ -438,7 +451,8 @@ pub fn session_channel<E: marker::Send + 'static, E_, R: marker::Send + 'static,
 }
 
 /// Connect two functions using a session typed channel.
-pub fn connect<E: marker::Send + 'static, E_, F1, F2, R: marker::Send + 'static, S>(srv: F1, cli: F2)
+pub fn connect<E: marker::Send + 'static, E_, F1, F2, R: marker::Send + 'static, S>
+    (srv: F1, cli: F2)
     where F1: Fn(Chan<E, R>) + marker::Send,
           F2: Fn(Chan<E_, S>) + marker::Send,
           (R, S): Dual,
