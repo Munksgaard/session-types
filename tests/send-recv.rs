@@ -1,7 +1,7 @@
-use std::thread::spawn;
+extern crate "rust-sessions" as sessions;
+use sessions::*;
 
-extern crate session_types;
-use session_types::*;
+use std::thread::spawn;
 
 fn client(n: u64, c: Chan<(), Send<u64, Eps>>) {
     c.send(n).close()

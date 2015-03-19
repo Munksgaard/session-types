@@ -1,5 +1,5 @@
-extern crate session_types;
-use session_types::*;
+extern crate "rust-sessions" as sessions;
+use sessions::*;
 
 fn server(c: Chan<(), Eps>) {
     c.close()
