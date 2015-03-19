@@ -321,21 +321,22 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
 
 /// Heterogeneous selection structure for channels
 ///
-/// This builds a structure of receiver that we wish to select over. This is a
-/// little dangerous, because we transmute the inner Receiver to a 'static
-/// lifetime borrow, and if the receiver goes out of scope calling `wait` will
-/// most likely cause a crash.
+/// This builds a structure of channels that we wish to select over. This is
+/// structured in a way such that the channels selected over cannot be
+/// interacted with (consumed) as long as the borrowing ChanSelect object
+/// exists. This is necessary to ensure memory safety and should not pose an
 ///
+/// The type parameter T is a return type, ie we store a value of some type T
+/// that is returned in case its associated channels is selected on `wait()`
 pub struct ChanSelect<'c, T> {
-    rxs: Vec<&'c Chan<(), ()>>,
-    ret: Vec<T>
+    chans: Vec<(&'c Chan<(), ()>, T)>,
 }
+
 
 impl<'c, T> ChanSelect<'c, T> {
     pub fn new() -> ChanSelect<'c, T> {
         ChanSelect {
-            rxs: Vec::new(),
-            ret: Vec::new()
+            chans: Vec::new()
         }
     }
 
@@ -344,27 +345,26 @@ impl<'c, T> ChanSelect<'c, T> {
     /// This method is marked unsafe, because of the lifetime transmute. If the
     /// Receiver goes out of scope nasty things can happen.
     pub fn add_ret<E, R, A: marker::Send>(&mut self,
-                                               chan: &'c Chan<E, Recv<A, R>>,
-                                               ret: T)
+                                          chan: &'c Chan<E, Recv<A, R>>,
+                                          ret: T)
     {
-        self.ret.push(ret);
-        self.rxs.push(unsafe { transmute(chan) });
+        self.chans.push((unsafe { transmute(chan) }, ret));
     }
 
     /// Find a Receiver (and hence a Chan) that is ready to receive.
     ///
     /// This method consumes the ChanSelect, freeing up the borrowed Receivers
     /// to be consumed.
-    pub fn wait(mut self) -> T {
+    pub fn wait(self) -> T {
         let sel = Select::new();
-        let mut handles = Vec::with_capacity(self.rxs.len());
+        let mut handles = Vec::with_capacity(self.chans.len());
         let mut map = HashMap::new();
 
-        for (i, chan) in self.rxs.iter().enumerate() {
-            let &Chan(_, ref rx, _) = *chan;
+        for (chan, ret) in self.chans.into_iter() {
+            let &Chan(_, ref rx, _) = chan;
             let h = sel.handle(rx);
             let id = h.id();
-            map.insert(id, i);
+            map.insert(id, ret);
             handles.push(h);
         }
 
@@ -377,16 +377,15 @@ impl<'c, T> ChanSelect<'c, T> {
         for handle in handles.iter_mut() {
             unsafe { handle.remove(); }
         }
-        let index = map.remove(&id).unwrap();
-        self.ret.remove(index)
+        map.remove(&id).unwrap()
     }
 }
 
 impl<'c> ChanSelect<'c, usize> {
     pub fn add<E, R, A: marker::Send>(&mut self,
-                                           c: &'c Chan<E, Recv<A, R>>)
+                                      c: &'c Chan<E, Recv<A, R>>)
     {
-        let index = self.rxs.len();
+        let index = self.chans.len();
         self.add_ret(c, index);
     }
 }
