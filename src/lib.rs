@@ -463,8 +463,37 @@ pub fn connect<E: marker::Send + 'static, E_, F1, F2, R: marker::Send + 'static,
     joinguard.join();
 }
 
-
-
+/// This macro is convenient for server-like protocols of the form:
+///
+/// `Offer<A, Offer<B, Offer<C, ... >>>`
+///
+/// Instead of a deeply nested structure, such as this:
+///
+/// ```rust
+/// match c.offer() {
+///     Ok(c)  => { /* A */ },
+///     Err(c) => match c.offer() {
+///         Ok(c)  => { /* B */ },
+///         Err(c) => match c.offer() {
+///             Ok(c)  => { /* C */ },
+///             Err(c) => { /* ... */ }
+///         }
+///     }
+/// }
+/// ```
+///
+/// We can write it like this instead:
+///
+/// ```rust
+/// offer! { c,
+///     A => { /* A */ },
+///     B => { /* B */ },
+///     C => { /* C */ },
+///     ...
+/// }
+/// ```
+/// The identifiers on the left-hand side of the arrows have no semantic
+/// meaning, they only provide a meaningful name for the reader.
 #[macro_export]
 macro_rules! offer {
     (
@@ -482,6 +511,22 @@ macro_rules! offer {
     )
 }
 
+/// This macro plays the same role as the `select!` macro does for `Receiver`s.
+///
+/// ```rust
+/// // c1: Chan<(), Recv<String, Eps>>
+/// // c2: Chan<(), Recv<u64, Eps>>
+/// chan_select! {
+///     (c, s) = c1.recv() => {
+///         println!("String: {}", s);
+///         c.close();
+///     },
+///     (c, n) = c2.recv() => {
+///         println!("Number: {}", n);
+///         c.close();
+///     }
+/// }
+/// ```
 #[macro_export]
 macro_rules! chan_select {
     (
