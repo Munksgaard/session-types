@@ -340,10 +340,10 @@ impl<'c, T> ChanSelect<'c, T> {
         }
     }
 
-    /// Add a channel whose next step is Recv
+    /// Add a channel whose next step is `Recv`
     ///
-    /// This method is marked unsafe, because of the lifetime transmute. If the
-    /// Receiver goes out of scope nasty things can happen.
+    /// Once a channel has been added it cannot be interacted with as long as it
+    /// is borrowed here (by virtue of move semantics).
     pub fn add_ret<E, R, A: marker::Send>(&mut self,
                                           chan: &'c Chan<E, Recv<A, R>>,
                                           ret: T)
