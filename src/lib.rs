@@ -213,14 +213,14 @@ impl<Z, A, B, C, D> Chan<Z, Choose<A, Choose<B, Choose<C, D>>>> {
     }
 }
 
-/// Convenience function. This is identical to `.sel2().sel2().sel2()`
+/// Convenience function. This is identical to `.sel2().sel2().sel2().sel2()`
 impl<Z, A, B, C, D, E> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, E>>>>> {
     pub fn skip4(self) -> Chan<Z, E> {
         self.sel2().sel2().sel2().sel2()
     }
 }
 
-/// Convenience function. This is identical to `.sel2().sel2().sel2().sel2()`
+/// Convenience function. This is identical to `.sel2().sel2().sel2().sel2().sel2()`
 impl<Z, A, B, C, D, E, F> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, Choose<E, F>>>>>> {
     pub fn skip5(self) -> Chan<Z, F> {
         self.sel2().sel2().sel2().sel2().sel2()
