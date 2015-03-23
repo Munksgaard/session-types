@@ -469,7 +469,7 @@ pub fn connect<E: marker::Send + 'static, E_, F1, F2, R: marker::Send + 'static,
 ///
 /// Instead of a deeply nested structure, such as this:
 ///
-/// ```rust
+/// ```rust,ignore
 /// match c.offer() {
 ///     Ok(c)  => { /* A */ },
 ///     Err(c) => match c.offer() {
@@ -484,7 +484,7 @@ pub fn connect<E: marker::Send + 'static, E_, F1, F2, R: marker::Send + 'static,
 ///
 /// We can write it like this instead:
 ///
-/// ```rust
+/// ```rust,ignore
 /// offer! { c,
 ///     A => { /* A */ },
 ///     B => { /* B */ },
@@ -513,9 +513,12 @@ macro_rules! offer {
 
 /// This macro plays the same role as the `select!` macro does for `Receiver`s.
 ///
-/// ```rust
+/// # Examples
+///
+/// ```rust,ignore
 /// // c1: Chan<(), Recv<String, Eps>>
 /// // c2: Chan<(), Recv<u64, Eps>>
+///
 /// chan_select! {
 ///     (c, s) = c1.recv() => {
 ///         println!("String: {}", s);
@@ -527,6 +530,7 @@ macro_rules! offer {
 ///     }
 /// }
 /// ```
+///
 #[macro_export]
 macro_rules! chan_select {
     (
