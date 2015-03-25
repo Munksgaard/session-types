@@ -28,8 +28,8 @@ fn chan_select_simple() {
     // prevents using the channels the ChanSelect holds references to.
     let index = {
         let mut sel = ChanSelect::new();
-        sel.add(&rcs); // Assigned 0
-        sel.add(&rcu); // Assigned 1
+        sel.add_recv(&rcs); // Assigned 0
+        sel.add_recv(&rcu); // Assigned 1
         sel.wait()     // Destroys the ChanSelect, releases references to
             // rcs and rcu
     };
@@ -43,8 +43,8 @@ fn chan_select_simple() {
 
     let index = {
         let mut sel = ChanSelect::new();
-        sel.add(&rcs);
-        sel.add(&rcu);
+        sel.add_recv(&rcs);
+        sel.add_recv(&rcu);
         sel.wait()
     };
 
@@ -75,8 +75,8 @@ fn chan_select_add_ret() {
     // prevents using the channels the ChanSelect holds references to.
     let chan_to_read = {
         let mut sel = ChanSelect::new();
-        sel.add_ret(&rcs, ChanToRead::Str);   // Assigned 0
-        sel.add_ret(&rcu, ChanToRead::Usize); // Assigned 1
+        sel.add_recv_ret(&rcs, ChanToRead::Str);   // Assigned 0
+        sel.add_recv_ret(&rcu, ChanToRead::Usize); // Assigned 1
         sel.wait()     // Destroys the ChanSelect, releases references to
             // rcs and rcu
     };
