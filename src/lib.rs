@@ -602,15 +602,15 @@ macro_rules! chan_select {
     });
 
     (
-        $($res:ident = $rx:ident.offer() => $code:expr),+
-    ) => (
+        $($res:ident = $rx:ident.offer() => { $($t:tt)+ }),+
+    ) => ({
         let index = {
             let mut sel = $crate::ChanSelect::new();
-            $( sel.add_recv(&$rx); )+
+            $( sel.add_offer(&$rx); )+
             sel.wait()
         };
         let mut i = 0;
-        $( if index == { i += 1; i - 1 } { $res = offer!{ $rx, $code } } else )+
+        $( if index == { i += 1; i - 1 } { $res = offer!{ $rx, $($t)+ } } else )+
         { unreachable!() }
-    )
+    })
 }
