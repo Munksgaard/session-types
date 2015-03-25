@@ -512,7 +512,6 @@ pub fn connect<E: marker::Send + 'static, E_, F1, F2, R: marker::Send + 'static,
 /// }
 /// ```
 /// The identifiers on the left-hand side of the arrows have no semantic
-
 /// meaning, they only provide a meaningful name for the reader.
 #[macro_export]
 macro_rules! offer {
@@ -531,20 +530,9 @@ macro_rules! offer {
     )
 }
 
-// // c1: Chan<(), Recv<String, Eps>>
-// // c2: Chan<(), Recv<u64, Eps>>
-// chan_select! {
-//     (c, s) = c1.recv() => {
-//         println!("String: {}", s);
-//         c.close();
-//     },
-//     (c, n) = c2.recv() => {
-//         println!("Number: {}", n);
-//         c.close();
-//     }
-// }
-
 /// This macro plays the same role as the `select!` macro does for `Receiver`s.
+///
+/// It also supports a second form with `Offer`s (see the example below).
 ///
 /// # Examples
 ///
@@ -586,6 +574,142 @@ macro_rules! offer {
 /// }
 /// ```
 ///
+/// ```rust,ignore
+/// #![feature(old_io, std_misc)]
+/// #[macro_use]
+/// extern crate "rust-sessions" as sess;
+/// extern crate rand;
+///
+/// use std::thread::spawn;
+/// use std::old_io::timer::sleep;
+/// use std::time::Duration;
+/// use rand::distributions::{IndependentSample,Range};
+/// use sess::*;
+///
+/// type Igo = Choose<Send<String, Var<Z>>, Send<u64, Var<Z>>>;
+/// type Ugo = Offer<Recv<String, Var<Z>>, Recv<u64, Var<Z>>>;
+///
+/// fn srv(chan_one: Chan<(), Rec<Ugo>>, chan_two: Chan<(), Rec<Ugo>>) {
+///     let mut chan_one = chan_one.enter();
+///     let mut chan_two = chan_two.enter();
+///
+///     loop {
+///         chan_select! {
+///             chan_one = chan_one.offer() => {
+///                 String => {
+///                     let (c, s) = chan_one.recv();
+///                     println!("Received {} from {}", s, stringify!(chan_one));
+///                     c.zero()
+///                 },
+///                 Number => {
+///                     let (c, n) = chan_one.recv();
+///                     println!("Received {} from {}", n, stringify!(chan_one));
+///                     c.zero()
+///                 }
+///             },
+///             chan_two = chan_two.offer() => {
+///                 String => {
+///                     let (c, s) = chan_two.recv();
+///                     println!("Received {} from {}", s, stringify!(chan_two));
+///                     c.zero()
+///                 },
+///                 Number => {
+///                     let (c, n) = chan_two.recv();
+///                     println!("Received {} from {}", n, stringify!(chan_two));
+///                     c.zero()
+///                 }
+///             }
+///         }
+///     }
+/// }
+///
+/// fn cli(c: Chan<(), Rec<Igo>>) {
+///     let mut c = c.enter();
+///     let range = Range::new(0usize, 5000);
+///     let mut rng = rand::thread_rng();
+///
+///     loop {
+///         let dur = range.ind_sample(&mut rng);
+///         sleep(Duration::milliseconds(dur as i64));
+///         c = if rand::random() {
+///             c.sel1().send("Hello, World!".to_string())
+///         } else {
+///             c.sel2().send(dur as u64)
+///         }.zero();
+///     }
+/// }
+///
+/// fn main() {
+///     let (ca1, ca2) = session_channel();
+///     let (cb1, cb2) = session_channel();
+///
+///     spawn(move|| cli(ca2));
+///     spawn(move|| cli(cb2));
+///
+///     srv(ca1, cb1);
+/// }
+/// ```
+///
+/// ```rust
+/// #[macro_use]
+/// extern crate "rust-sessions" as sess;
+/// extern crate rand;
+///
+/// use std::thread::spawn;
+/// use sess::*;
+///
+/// type Igo = Choose<Send<String, Eps>, Send<u64, Eps>>;
+/// type Ugo = Offer<Recv<String, Eps>, Recv<u64, Eps>>;
+///
+/// fn srv(chan_one: Chan<(), Ugo>, chan_two: Chan<(), Ugo>) {
+///     let _ign;
+///     chan_select! {
+///         _ign = chan_one.offer() => {
+///             String => {
+///                 let (c, s) = chan_one.recv();
+///                 assert_eq!("Hello, World!".to_string(), s);
+///                 c.close();
+///             },
+///             Number => {
+///                 let (c, n) = chan_one.recv();
+///                 assert_eq!(42, n);
+///                 c.close();
+///             }
+///         },
+///         _ign = chan_two.offer() => {
+///             String => {
+///                 let (c, s) = chan_two.recv();
+///                 assert_eq!("Hello, World!".to_string(), s);
+///                 c.close();
+///             },
+///             Number => {
+///                 let (c, n) = chan_two.recv();
+///                 assert_eq!(42, n);
+///                 c.close();
+///             }
+///         }
+///     }
+/// }
+///
+/// fn cli(c: Chan<(), Igo>) {
+///     if rand::random() {
+///         c.sel1().send("Hello, World!".to_string()).close();
+///     } else {
+///         c.sel2().send(42).close();
+///     }
+/// }
+///
+/// fn main() {
+///     let (ca1, ca2) = session_channel();
+///     let (cb1, cb2) = session_channel();
+///
+///     spawn(move|| cli(if rand::random() { ca2 } else { cb2 }));
+///
+///     srv(ca1, cb1);
+/// }
+/// ```
+
+
 #[macro_export]
 macro_rules! chan_select {
     (
