@@ -486,31 +486,43 @@ pub fn connect<E: marker::Send + 'static, E_, F1, F2, R: marker::Send + 'static,
 ///
 /// `Offer<A, Offer<B, Offer<C, ... >>>`
 ///
-/// Instead of a deeply nested structure, such as this:
+/// # Examples
 ///
-/// ```rust,ignore
-/// match c.offer() {
-///     Ok(c)  => { /* A */ },
-///     Err(c) => match c.offer() {
-///         Ok(c)  => { /* B */ },
-///         Err(c) => match c.offer() {
-///             Ok(c)  => { /* C */ },
-///             Err(c) => { /* ... */ }
+/// Assume we have a protocol `Offer<Recv<u64, Eps>, Offer<Recv<String, Eps>,Eps>>>`
+/// we can use the `offer!` macro as follows:
+///
+/// ```rust
+/// #[macro_use] extern crate "rust-sessions" as sessions;
+/// use sessions::*;
+/// use std::thread::spawn;
+///
+/// fn srv(c: Chan<(), Offer<Recv<u64, Eps>, Offer<Recv<String, Eps>, Eps>>>) {
+///     offer! { c,
+///         Number => {
+///             let (c, n) = c.recv();
+///             assert_eq!(42, n);
+///             c.close();
+///         },
+///         String => {
+///             c.recv().0.close();
+///         },
+///         Quit => {
+///             c.close();
 ///         }
 ///     }
 /// }
-/// ```
 ///
-/// We can write it like this instead:
+/// fn cli(c: Chan<(), Choose<Send<u64, Eps>, Choose<Send<String, Eps>, Eps>>>) {
+///     c.sel1().send(42).close();
+/// }
 ///
-/// ```rust,ignore
-/// offer! { c,
-///     A => { /* A */ },
-///     B => { /* B */ },
-///     C => { /* C */ },
-///     ...
+/// fn main() {
+///     let (s, c) = session_channel();
+///     spawn(move|| cli(c));
+///     srv(s);
 /// }
 /// ```
+///
 /// The identifiers on the left-hand side of the arrows have no semantic
 /// meaning, they only provide a meaningful name for the reader.
 #[macro_export]
@@ -595,39 +607,29 @@ macro_rules! offer {
 ///                 c.close();
 ///             },
 ///             Number => {
-///                 let (c, n) = chan_one.recv();
-///                 assert_eq!(42, n);
-///                 c.close();
+///                 unreachable!()
 ///             }
 ///         },
 ///         _ign = chan_two.offer() => {
 ///             String => {
-///                 let (c, s) = chan_two.recv();
-///                 assert_eq!("Hello, World!".to_string(), s);
-///                 c.close();
+///                 unreachable!()
 ///             },
 ///             Number => {
-///                 let (c, n) = chan_two.recv();
-///                 assert_eq!(42, n);
-///                 c.close();
+///                 unreachable!()
 ///             }
 ///         }
 ///     }
 /// }
 ///
 /// fn cli(c: Chan<(), Igo>) {
-///     if rand::random() {
-///         c.sel1().send("Hello, World!".to_string()).close();
-///     } else {
-///         c.sel2().send(42).close();
-///     }
+///     c.sel1().send("Hello, World!".to_string()).close();
 /// }
 ///
 /// fn main() {
 ///     let (ca1, ca2) = session_channel();
 ///     let (cb1, cb2) = session_channel();
 ///
-///     spawn(move|| cli(if rand::random() { ca2 } else { cb2 }));
+///     spawn(move|| cli(ca2));
 ///
 ///     srv(ca1, cb1);
 /// }
