@@ -344,9 +344,16 @@ impl<'c, T> ChanSelect<'c, T> {
     ///
     /// Once a channel has been added it cannot be interacted with as long as it
     /// is borrowed here (by virtue of move semantics).
-    pub fn add_ret<E, R, A: marker::Send>(&mut self,
-                                          chan: &'c Chan<E, Recv<A, R>>,
-                                          ret: T)
+    pub fn add_recv_ret<E, R, A: marker::Send>(&mut self,
+                                               chan: &'c Chan<E, Recv<A, R>>,
+                                               ret: T)
+    {
+        self.chans.push((unsafe { transmute(chan) }, ret));
+    }
+
+    pub fn add_offer_ret<E, R, S>(&mut self,
+                                  chan: &'c Chan<E, Offer<R, S>>,
+                                  ret: T)
     {
         self.chans.push((unsafe { transmute(chan) }, ret));
     }
@@ -379,14 +386,26 @@ impl<'c, T> ChanSelect<'c, T> {
         }
         map.remove(&id).unwrap()
     }
+
+    /// How many channels are there in the structure?
+    pub fn len(&self) -> usize {
+        self.chans.len()
+    }
 }
 
 impl<'c> ChanSelect<'c, usize> {
-    pub fn add<E, R, A: marker::Send>(&mut self,
-                                      c: &'c Chan<E, Recv<A, R>>)
+    pub fn add_recv<E, R, A: marker::Send>(&mut self,
+                                           c: &'c Chan<E, Recv<A, R>>)
     {
         let index = self.chans.len();
-        self.add_ret(c, index);
+        self.add_recv_ret(c, index);
+    }
+
+    pub fn add_offer<E, R, S>(&mut self,
+                              c: &'c Chan<E, Offer<R, S>>)
+    {
+        let index = self.chans.len();
+        self.add_offer_ret(c, index);
     }
 }
 
@@ -513,24 +532,108 @@ macro_rules! offer {
 
 /// This macro plays the same role as the `select!` macro does for `Receiver`s.
 ///
+/// It also supports a second form with `Offer`s (see the example below).
+///
 /// # Examples
 ///
-/// ```rust,ignore
-/// // c1: Chan<(), Recv<String, Eps>>
-/// // c2: Chan<(), Recv<u64, Eps>>
+/// ```rust
+/// #[macro_use] extern crate "rust-sessions" as sessions;
+/// use sessions::*;
+/// use std::thread::spawn;
 ///
-/// chan_select! {
-///     (c, s) = c1.recv() => {
-///         println!("String: {}", s);
-///         c.close();
-///     },
-///     (c, n) = c2.recv() => {
-///         println!("Number: {}", n);
-///         c.close();
+/// fn send_str(c: Chan<(), Send<String, Eps>>) {
+///     c.send("Hello, World!".to_string()).close();
+/// }
+///
+/// fn send_usize(c: Chan<(), Send<usize, Eps>>) {
+///     c.send(42).close();
+/// }
+///
+/// fn main() {
+///     let (tcs, rcs) = session_channel();
+///     let (tcu, rcu) = session_channel();
+///
+///     // Spawn threads
+///     spawn(move|| send_str(tcs));
+///     spawn(move|| send_usize(tcu));
+///
+///     loop {
+///         chan_select! {
+///             (c, s) = rcs.recv() => {
+///                 assert_eq!("Hello, World!".to_string(), s);
+///                 c.close();
+///                 break
+///             },
+///             (c, i) = rcu.recv() => {
+///                 assert_eq!(42, i);
+///                 c.close();
+///                 break
+///             }
+///         }
 ///     }
 /// }
 /// ```
 ///
+/// ```rust
+/// #[macro_use]
+/// extern crate "rust-sessions" as sess;
+/// extern crate rand;
+///
+/// use std::thread::spawn;
+/// use sess::*;
+///
+/// type Igo = Choose<Send<String, Eps>, Send<u64, Eps>>;
+/// type Ugo = Offer<Recv<String, Eps>, Recv<u64, Eps>>;
+///
+/// fn srv(chan_one: Chan<(), Ugo>, chan_two: Chan<(), Ugo>) {
+///     let _ign;
+///     chan_select! {
+///         _ign = chan_one.offer() => {
+///             String => {
+///                 let (c, s) = chan_one.recv();
+///                 assert_eq!("Hello, World!".to_string(), s);
+///                 c.close();
+///             },
+///             Number => {
+///                 let (c, n) = chan_one.recv();
+///                 assert_eq!(42, n);
+///                 c.close();
+///             }
+///         },
+///         _ign = chan_two.offer() => {
+///             String => {
+///                 let (c, s) = chan_two.recv();
+///                 assert_eq!("Hello, World!".to_string(), s);
+///                 c.close();
+///             },
+///             Number => {
+///                 let (c, n) = chan_two.recv();
+///                 assert_eq!(42, n);
+///                 c.close();
+///             }
+///         }
+///     }
+/// }
+///
+/// fn cli(c: Chan<(), Igo>) {
+///     if rand::random() {
+///         c.sel1().send("Hello, World!".to_string()).close();
+///     } else {
+///         c.sel2().send(42).close();
+///     }
+/// }
+///
+/// fn main() {
+///     let (ca1, ca2) = session_channel();
+///     let (cb1, cb2) = session_channel();
+///
+///     spawn(move|| cli(if rand::random() { ca2 } else { cb2 }));
+///
+///     srv(ca1, cb1);
+/// }
+/// ```
+
+
 #[macro_export]
 macro_rules! chan_select {
     (
@@ -538,13 +641,24 @@ macro_rules! chan_select {
     ) => ({
         let index = {
             let mut sel = $crate::ChanSelect::new();
-            $( sel.add(&$rx); )+
+            $( sel.add_recv(&$rx); )+
             sel.wait()
         };
-
-        let mut i: usize = 0;
-
+        let mut i = 0;
         $( if index == { i += 1; i - 1 } { let ($c, $name) = $rx.recv(); $code } else )+
+        { unreachable!() }
+    });
+
+    (
+        $($res:ident = $rx:ident.offer() => { $($t:tt)+ }),+
+    ) => ({
+        let index = {
+            let mut sel = $crate::ChanSelect::new();
+            $( sel.add_offer(&$rx); )+
+            sel.wait()
+        };
+        let mut i = 0;
+        $( if index == { i += 1; i - 1 } { $res = offer!{ $rx, $($t)+ } } else )+
         { unreachable!() }
     })
 }
