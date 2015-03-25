@@ -295,7 +295,7 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
 
     let id = {
         let sel = Select::new();
-        let mut handles = vec![]; // collect all the handles
+        let mut handles = Vec::with_capacity(chans.len()); // collect all the handles
 
         for (i, chan) in chans.iter().enumerate() {
             let &Chan(_, ref rx, _) = chan;

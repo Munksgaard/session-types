@@ -1,1 +1,6 @@
 language: rust
+
+notifications:
+  email:
+    - pmunksgaard@gmail.com
+    - laumann.thomas@gmail.com
