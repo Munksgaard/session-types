@@ -1,5 +1,5 @@
 [package]
-name = "rust-sessions"
+name = "rust_sessions"
 version = "0.0.1"
 authors = [ "Philip Munksgaard <pmunksgaard@gmail.com>"
           , "Thomas Bracht Laumann Jespersen <laumann.thomas@gmail.com>"
