@@ -1,4 +1,4 @@
-#[macro_use] extern crate "rust-sessions" as rust_sessions;
+#[macro_use] extern crate rust_sessions;
 
 use std::thread::spawn;
 use std::borrow::ToOwned;

@@ -8,10 +8,10 @@
 #![feature(plugin, custom_derive)]
 #![plugin(rand_macros)]
 
-extern crate "rust-sessions" as sessions;
+extern crate rust_sessions;
 extern crate rand;
 
-use sessions::*;
+use rust_sessions::*;
 
 use std::sync::mpsc::{Sender, Receiver, channel};
 use std::thread::spawn;

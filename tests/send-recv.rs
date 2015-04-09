@@ -1,5 +1,5 @@
-extern crate "rust-sessions" as sessions;
-use sessions::*;
+extern crate rust_sessions;
+use rust_sessions::*;
 
 use std::thread::spawn;
 
