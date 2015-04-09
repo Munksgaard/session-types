@@ -26,8 +26,8 @@
 //! `Chan<(), Send<i64, Recv<bool, Eps>>>`, and the full program could look like this:
 //!
 //! ```
-//! extern crate "rust-sessions" as sessions;
-//! use sessions::*;
+//! extern crate rust_sessions;
+//! use rust_sessions::*;
 //!
 //! type Server = Recv<i64, Send<bool, Eps>>;
 //! type Client = Send<i64, Recv<bool, Eps>>;
@@ -492,8 +492,8 @@ pub fn connect<E: marker::Send + 'static, E_, F1, F2, R: marker::Send + 'static,
 /// we can use the `offer!` macro as follows:
 ///
 /// ```rust
-/// #[macro_use] extern crate "rust-sessions" as sessions;
-/// use sessions::*;
+/// #[macro_use] extern crate rust_sessions;
+/// use rust_sessions::*;
 /// use std::thread::spawn;
 ///
 /// fn srv(c: Chan<(), Offer<Recv<u64, Eps>, Offer<Recv<String, Eps>, Eps>>>) {
@@ -549,8 +549,8 @@ macro_rules! offer {
 /// # Examples
 ///
 /// ```rust
-/// #[macro_use] extern crate "rust-sessions" as sessions;
-/// use sessions::*;
+/// #[macro_use] extern crate rust_sessions;
+/// use rust_sessions::*;
 /// use std::thread::spawn;
 ///
 /// fn send_str(c: Chan<(), Send<String, Eps>>) {
@@ -588,11 +588,11 @@ macro_rules! offer {
 ///
 /// ```rust
 /// #[macro_use]
-/// extern crate "rust-sessions" as sess;
+/// extern crate rust_sessions;
 /// extern crate rand;
 ///
 /// use std::thread::spawn;
-/// use sess::*;
+/// use rust_sessions::*;
 ///
 /// type Igo = Choose<Send<String, Eps>, Send<u64, Eps>>;
 /// type Ugo = Offer<Recv<String, Eps>, Recv<u64, Eps>>;
