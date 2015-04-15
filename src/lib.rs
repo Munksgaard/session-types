@@ -439,6 +439,9 @@ pub fn request<E, R: HasDual>(rx: Receiver<Chan<E, R>>) -> Option<Chan<E, R::Dua
 
 pub fn borrow_request<E, R: HasDual>(rx: &Receiver<Chan<E, R>>) -> Option<Chan<E, R::Dual>> {
     match rx.recv() {
+        // TODO Change to a normal transmute once
+        // https://github.com/rust-lang/rust/issues/24459
+        // has been addressed.
         Ok(Chan(tx, rx, _)) => Some(Chan(tx, rx, PhantomData)),
         _ => None
     }
