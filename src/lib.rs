@@ -69,7 +69,7 @@ use std::mem::transmute;
 use std::sync::mpsc::{Sender, Receiver, channel};
 use std::collections::HashMap;
 use std::sync::mpsc::Select;
-use std::marker::{PhantomData, PhantomFn};
+use std::marker::PhantomData;
 
 /// A session typed channel. `T` is the protocol and `E` is the environment,
 /// containing potential recursion targets
@@ -119,39 +119,41 @@ pub struct Rec<R> ( PhantomData<R> );
 /// out of.
 pub struct Var<V> ( PhantomData<V> );
 
-/// Indicates that two protocols are dual
-pub unsafe trait Dual: PhantomFn<Self> {}
+pub unsafe trait HasDual {
+    type Dual;
+}
 
-unsafe impl Dual for (Eps, Eps) {}
+unsafe impl HasDual for Eps {
+    type Dual = Eps;
+}
 
-unsafe impl <A, T, U> Dual for (Send<A, T>, Recv<A, U>)
-    where (T, U): Dual {}
+unsafe impl <A, T: HasDual> HasDual for Send<A, T> {
+    type Dual = Recv<A, T::Dual>;
+}
 
-unsafe impl <A, T, U> Dual for (Recv<A, T>, Send<A, U>)
-    where (T, U): Dual {}
+unsafe impl <A, T: HasDual> HasDual for Recv<A, T> {
+    type Dual = Send<A, T::Dual>;
+}
 
-unsafe impl<R, S, Rn, Sn> Dual for (Choose<R, Rn>, Offer<S, Sn>)
-    where (R, S): Dual, (Rn, Sn): Dual {}
+unsafe impl <R: HasDual, S: HasDual> HasDual for Choose<R, S> {
+    type Dual = Offer<R::Dual, S::Dual>;
+}
 
-unsafe impl<R, S, Rn, Sn> Dual for (Offer<R, Rn>, Choose<S, Sn>)
-    where (R, S): Dual, (Rn, Sn): Dual {}
+unsafe impl <R: HasDual, S: HasDual> HasDual for Offer<R, S> {
+    type Dual = Choose<R::Dual, S::Dual>;
+}
 
-unsafe impl Dual for (Var<Z>, Var<Z>) {}
+unsafe impl HasDual for Var<Z> {
+    type Dual = Var<Z>;
+}
 
-unsafe impl<N> Dual for (Var<S<N>>, Var<S<N>>)
-    where (Var<N>, Var<N>): Dual {}
+unsafe impl <N> HasDual for Var<S<N>> {
+    type Dual = Var<S<N>>; // TODO bound on N?
+}
 
-unsafe impl<T, U> Dual for (Rec<T>, Rec<U>)
-    where (T, U): Dual {}
-
-/// Special duality check for environments
-pub unsafe trait EnvDual: PhantomFn<Self> {}
-
-unsafe impl EnvDual for ((), ()) {}
-
-unsafe impl <R, R_, T, T_> EnvDual for ((R, T), (R_, T_))
-    where (R, R_): Dual,
-          (T, T_): EnvDual {}
+unsafe impl <T: HasDual> HasDual for Rec<T> {
+    type Dual = Rec<T::Dual>;
+}
 
 impl<E> Chan<E, Eps> {
     /// Close a channel. Should always be used at the end of your program.
@@ -411,54 +413,38 @@ impl<'c> ChanSelect<'c, usize> {
 
 /// Sets up an session typed communication channel. Should be paired with
 /// `request` for the corresponding client.
-pub fn accept<E: marker::Send + 'static, R: marker::Send + 'static>
-    (tx: Sender<Chan<E, R>>) -> Option<Chan<E, R>>
-{
+pub fn accept<E, R>(tx: Sender<Chan<E, R>>) -> Option<Chan<E, R>> {
     borrow_accept(&tx)
 }
 
-pub fn borrow_accept<E: marker::Send + 'static, R: marker::Send + 'static>
-    (tx: &Sender<Chan<E, R>>) -> Option<Chan<E, R>>
-{
+pub fn borrow_accept<E, R>(tx: &Sender<Chan<E, R>>) -> Option<Chan<E, R>> {
     let (tx1, rx1) = channel();
     let (tx2, rx2) = channel();
 
-    let c1 = Chan (tx1, rx2, PhantomData);
-    let c2 = Chan (tx2, rx1, PhantomData);
+    let c1 = Chan(tx1, rx2, PhantomData);
+    let c2 = Chan(tx2, rx1, PhantomData);
 
     match tx.send(c1) {
         Ok(_) => Some(c2),
-        _ => None,
+        _ => None
     }
 }
 
 /// Sets up an session typed communication channel. Should be paired with
 /// `accept` for the corresponding server.
-pub fn request<E: marker::Send + 'static, E_, R: marker::Send + 'static, S>
-    (rx: Receiver<Chan<E, R>>) -> Option<Chan<E_, S>>
-    where (R, S): Dual,
-          (E, E_): EnvDual
-{
+pub fn request<E, R: HasDual>(rx: Receiver<Chan<E, R>>) -> Option<Chan<E, R::Dual>> {
     borrow_request(&rx)
 }
 
-pub fn borrow_request<E: marker::Send + 'static, E_, R: marker::Send + 'static, S>
-    (rx: &Receiver<Chan<E, R>>) -> Option<Chan<E_, S>>
-    where (R, S): Dual,
-          (E, E_): EnvDual
-{
+pub fn borrow_request<E, R: HasDual>(rx: &Receiver<Chan<E, R>>) -> Option<Chan<E, R::Dual>> {
     match rx.recv() {
-        Ok(c) => Some(unsafe { transmute(c) }),
-        _ => None,
+        Ok(Chan(tx, rx, _)) => Some(Chan(tx, rx, PhantomData)),
+        _ => None
     }
 }
 
 /// Returns two session channels
-pub fn session_channel<E: marker::Send + 'static, E_, R: marker::Send + 'static, S>
-    () -> (Chan<E, R>, Chan<E_, S>)
-    where (R, S): Dual,
-          (E, E_): EnvDual
-{
+pub fn session_channel<R: HasDual>() -> (Chan<(), R>, Chan<(), R::Dual>) {
     let (tx1, rx1) = channel();
     let (tx2, rx2) = channel();
 
@@ -469,17 +455,16 @@ pub fn session_channel<E: marker::Send + 'static, E_, R: marker::Send + 'static,
 }
 
 /// Connect two functions using a session typed channel.
-pub fn connect<E: marker::Send + 'static, E_, F1, F2, R: marker::Send + 'static, S>
-    (srv: F1, cli: F2)
+pub fn connect<E, F1, F2, R>(srv: F1, cli: F2)
     where F1: Fn(Chan<E, R>) + marker::Send,
-          F2: Fn(Chan<E_, S>) + marker::Send,
-          (R, S): Dual,
-          (E, E_): EnvDual
+          F2: Fn(Chan<E, R::Dual>) + marker::Send,
+          E: marker::Send + 'static,
+          R: HasDual + marker::Send + 'static
 {
     let (tx, rx) = channel();
-    let joinguard = scoped(move || srv(accept(tx).unwrap()));
+    let jg = scoped(move|| srv(accept(tx).unwrap()));
     cli(request(rx).unwrap());
-    joinguard.join();
+    jg.join();
 }
 
 /// This macro is convenient for server-like protocols of the form:
