@@ -17,10 +17,10 @@ use std::sync::mpsc::{Sender, Receiver, channel};
 use std::thread::spawn;
 use std::num::Float;
 
-#[derive(Debug, Copy, Rand)]
+#[derive(Debug, Copy, Clone, Rand)]
 struct Point(f64, f64, f64);
 
-#[derive(Debug, Copy, Rand)]
+#[derive(Debug, Copy, Clone, Rand)]
 struct Plane(f64, f64, f64, f64);
 
 fn above(Point(x, y, z): Point, Plane(a, b, c, d): Plane) -> bool {
