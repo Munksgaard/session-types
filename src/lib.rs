@@ -62,6 +62,7 @@
 
 
 #![feature(std_misc)]
+#![feature(scoped)]
 
 use std::marker;
 use std::thread::scoped;
