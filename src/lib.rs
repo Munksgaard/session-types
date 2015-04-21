@@ -116,6 +116,12 @@ pub struct Offer<R,S> ( PhantomData<(R, S)> );
 /// Enter a recursive environment
 pub struct Rec<R> ( PhantomData<R> );
 
+pub struct IterIn<R, N> (PhantomData<(R, N)>);
+
+pub struct IterOut<R, N> (PhantomData<(R, N)>);
+
+pub struct IterEps;
+
 /// Recurse. V indicates how many layers of the recursive environment we recurse
 /// out of.
 pub struct Var<V> ( PhantomData<V> );
@@ -154,6 +160,18 @@ unsafe impl <N> HasDual for Var<S<N>> {
 
 unsafe impl <T: HasDual> HasDual for Rec<T> {
     type Dual = Rec<T::Dual>;
+}
+
+unsafe impl <R: HasDual, N: HasDual> HasDual for IterIn<R, N> {
+    type Dual = IterOut<R::Dual, N::Dual>;
+}
+
+unsafe impl<R: HasDual, N: HasDual> HasDual for IterOut<R, N> {
+    type Dual = IterIn<R::Dual, N::Dual>;
+}
+
+unsafe impl HasDual for IterEps {
+    type Dual = IterEps;
 }
 
 pub unsafe trait HasDualEnv {
@@ -288,6 +306,35 @@ impl<E, R, V> Chan<(R, E), Var<S<V>>> {
     /// Pop the top environment from the environment stack.
     pub fn succ(self) -> Chan<E, Var<V>> {
         unsafe { transmute(self) }
+    }
+}
+
+impl<E, R> Chan<(R, E), IterEps> {
+    pub fn iter(self) -> Chan<E, R> {
+        unsafe { transmute(self) }
+    }
+}
+
+impl<E, R, N> Chan<E, IterIn<R, N>> {
+    pub fn in_while(self) -> Chan<(IterIn<R, N>, E), R> {
+        unsafe_write_chan(&self, true);
+        unsafe { transmute(self) }
+    }
+
+    pub fn exit_while(self) -> Chan<E, N> {
+        unsafe_write_chan(&self, false);
+        unsafe { transmute(self) }
+    }
+}
+
+impl<E, R, N> Chan<E, IterOut<R, N>> {
+    pub fn out_while(self) -> Result<Chan<(IterOut<R, N>, E), R>, Chan<E, N>> {
+        let b = unsafe_read_chan(&self);
+        if b {
+            Ok(unsafe { transmute(self) })
+        } else {
+            Err(unsafe { transmute(self) })
+        }
     }
 }
 
