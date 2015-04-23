@@ -174,18 +174,6 @@ unsafe impl HasDual for IterEps {
     type Dual = IterEps;
 }
 
-pub unsafe trait HasDualEnv {
-    type DualEnv;
-}
-
-unsafe impl HasDualEnv for () {
-    type DualEnv = ();
-}
-
-unsafe impl <R: HasDual, E: HasDualEnv> HasDualEnv for (R, E) {
-    type DualEnv = (R::Dual, E::DualEnv);
-}
-
 impl<E> Chan<E, Eps> {
     /// Close a channel. Should always be used at the end of your program.
     pub fn close(self) {
@@ -473,11 +461,11 @@ impl<'c> ChanSelect<'c, usize> {
 
 /// Sets up an session typed communication channel. Should be paired with
 /// `request` for the corresponding client.
-pub fn accept<E, R>(tx: Sender<Chan<E, R>>) -> Option<Chan<E, R>> {
+pub fn accept<R>(tx: Sender<Chan<(), R>>) -> Option<Chan<(), R>> {
     borrow_accept(&tx)
 }
 
-pub fn borrow_accept<E, R>(tx: &Sender<Chan<E, R>>) -> Option<Chan<E, R>> {
+pub fn borrow_accept<R>(tx: &Sender<Chan<(), R>>) -> Option<Chan<(), R>> {
     let (tx1, rx1) = channel();
     let (tx2, rx2) = channel();
 
@@ -492,11 +480,11 @@ pub fn borrow_accept<E, R>(tx: &Sender<Chan<E, R>>) -> Option<Chan<E, R>> {
 
 /// Sets up an session typed communication channel. Should be paired with
 /// `accept` for the corresponding server.
-pub fn request<E: HasDualEnv, R: HasDual>(rx: Receiver<Chan<E, R>>) -> Option<Chan<E::DualEnv, R::Dual>> {
+pub fn request<R: HasDual>(rx: Receiver<Chan<(), R>>) -> Option<Chan<(), R::Dual>> {
     borrow_request(&rx)
 }
 
-pub fn borrow_request<E: HasDualEnv, R: HasDual>(rx: &Receiver<Chan<E, R>>) -> Option<Chan<E::DualEnv, R::Dual>> {
+pub fn borrow_request<R: HasDual>(rx: &Receiver<Chan<(), R>>) -> Option<Chan<(), R::Dual>> {
     match rx.recv() {
         // TODO Change to a normal transmute once
         // https://github.com/rust-lang/rust/issues/24459
@@ -507,7 +495,7 @@ pub fn borrow_request<E: HasDualEnv, R: HasDual>(rx: &Receiver<Chan<E, R>>) -> O
 }
 
 /// Returns two session channels
-pub fn session_channel<E: HasDualEnv, R: HasDual>() -> (Chan<E, R>, Chan<E::DualEnv, R::Dual>) {
+pub fn session_channel<R: HasDual>() -> (Chan<(), R>, Chan<(), R::Dual>) {
     let (tx1, rx1) = channel();
     let (tx2, rx2) = channel();
 
@@ -518,10 +506,9 @@ pub fn session_channel<E: HasDualEnv, R: HasDual>() -> (Chan<E, R>, Chan<E::Dual
 }
 
 /// Connect two functions using a session typed channel.
-pub fn connect<E, F1, F2, R>(srv: F1, cli: F2)
-    where F1: Fn(Chan<E, R>) + marker::Send,
-          F2: Fn(Chan<E::DualEnv, R::Dual>) + marker::Send,
-          E: HasDualEnv + marker::Send + 'static,
+pub fn connect<F1, F2, R>(srv: F1, cli: F2)
+    where F1: Fn(Chan<(), R>) + marker::Send,
+          F2: Fn(Chan<(), R::Dual>) + marker::Send,
           R: HasDual + marker::Send + 'static
 {
     let (tx, rx) = channel();
