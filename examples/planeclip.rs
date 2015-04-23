@@ -15,7 +15,6 @@ use rust_sessions::*;
 
 use std::sync::mpsc::{Sender, Receiver, channel};
 use std::thread::spawn;
-use std::num::Float;
 
 #[derive(Debug, Copy, Clone, Rand)]
 struct Point(f64, f64, f64);
@@ -24,7 +23,7 @@ struct Point(f64, f64, f64);
 struct Plane(f64, f64, f64, f64);
 
 fn above(Point(x, y, z): Point, Plane(a, b, c, d): Plane) -> bool {
-    (a * x + b * y + c * z + d) / Float::sqrt(a * a + b * b + c * c) > 0.0
+    (a * x + b * y + c * z + d) / (a * a + b * b + c * c).sqrt() > 0.0
 }
 
 fn intersect(p1: Point, p2: Point, plane: Plane) -> Option<Point> {
@@ -90,40 +89,42 @@ fn clipper(plane: Plane,
 
     let mut oc = oc.enter();
     let mut ic = ic.enter();
+    let (pt0, mut pt);
 
     match ic.offer() {
         Ok(c) => {
             c.close();
             oc.sel1().close();
+            return
         }
-        Err(ic2) => {
-            let (ic2, pt0) = ic2.recv();
-            ic = ic2.zero();
-            let mut pt = pt0;
-            loop {
-                if above(pt, plane) {
+        Err(c) => {
+            let (c, ptz) = c.recv();
+            ic = c.zero();
+            pt0 = ptz;
+            pt = ptz;
+        }
+    }
+
+    loop {
+        if above(pt, plane) {
+            oc = oc.sel2().send(pt).zero();
+        }
+        ic = match ic.offer() {
+            Ok(c) => {
+                if let Some(pt) = intersect(pt, pt0, plane) {
                     oc = oc.sel2().send(pt).zero();
                 }
-                match ic.offer() {
-                    Ok(c) => {
-                        match intersect(pt, pt0, plane) {
-                            Some(pt) => { oc = oc.sel2().send(pt).zero(); }
-                            None => ()
-                        }
-                        c.close();
-                        oc.sel1().close();
-                        break;
-                    }
-                    Err(ic2) => {
-                        let (ic2, pt2) = ic2.recv();
-                        ic = ic2.zero();
-                        match intersect(pt, pt2, plane) {
-                            Some(pt) => { oc = oc.sel2().send(pt).zero(); }
-                            None => ()
-                        }
-                        pt = pt2;
-                    }
+                c.close();
+                oc.sel1().close();
+                break;
+            }
+            Err(ic) => {
+                let (ic, pt2) = ic.recv();
+                if let Some(pt) = intersect(pt, pt2, plane) {
+                    oc = oc.sel2().send(pt).zero();
                 }
+                pt = pt2;
+                ic.zero()
             }
         }
     }
@@ -132,17 +133,12 @@ fn clipper(plane: Plane,
 fn clipmany(planes: Vec<Plane>, points: Vec<Point>) -> Vec<Point> {
     let (tx, rx) = channel();
     spawn(move || sendlist(tx, points));
-    let mut planes = planes;
     let mut rx = rx;
-    loop {
-        match planes.pop() {
-            None => {break;}
-            Some(p) => {
-                let (tx2, rx2) = channel();
-                spawn(move || clipper(p, rx, tx2));
-                rx = rx2;
-            }
-        }
+
+    for plane in planes.into_iter() {
+        let (tx2, rx2) = channel();
+        spawn(move || clipper(plane, rx, tx2));
+        rx = rx2;
     }
     recvlist(rx)
 }
