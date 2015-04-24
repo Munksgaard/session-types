@@ -73,17 +73,17 @@ use std::marker::PhantomData;
 
 /// A session typed channel. `T` is the protocol and `E` is the environment,
 /// containing potential recursion targets
-pub struct Chan<E, T> (Sender<Box<u8>>, Receiver<Box<u8>>, PhantomData<(E, T)>);
+pub struct Chan<E, P> (Sender<Box<u8>>, Receiver<Box<u8>>, PhantomData<(E, P)>);
 
-fn unsafe_write_chan<A: marker::Send + 'static, E, T>
-    (&Chan(ref tx, _, _): &Chan<E, T>, x: A)
+fn unsafe_write_chan<A: marker::Send + 'static, E, P>
+    (&Chan(ref tx, _, _): &Chan<E, P>, x: A)
 {
     let tx: &Sender<Box<A>> = unsafe { transmute(tx) };
     tx.send(Box::new(x)).unwrap();
 }
 
-fn unsafe_read_chan<A: marker::Send + 'static, E, T>
-    (&Chan(_, ref rx, _): &Chan<E, T>) -> A
+fn unsafe_read_chan<A: marker::Send + 'static, E, P>
+    (&Chan(_, ref rx, _): &Chan<E, P>) -> A
 {
     let rx: &Receiver<Box<A>> = unsafe { transmute(rx) };
     *rx.recv().unwrap()
@@ -101,23 +101,23 @@ pub struct S<P> ( PhantomData<P> );
 pub struct Eps;
 
 /// Receive `A`, then `R`
-pub struct Recv<A,R> ( PhantomData<(A, R)> );
+pub struct Recv<A, P> ( PhantomData<(A, P)> );
 
 /// Send `A`, then `R`
-pub struct Send<A,R> ( PhantomData<(A, R)> );
+pub struct Send<A, P> ( PhantomData<(A, P)> );
 
 /// Active choice between `R` and `S`
-pub struct Choose<R,S> ( PhantomData<(R, S)> );
+pub struct Choose<P, Q> ( PhantomData<(P, Q)> );
 
 /// Passive choice (offer) between `R` and `S`
-pub struct Offer<R,S> ( PhantomData<(R, S)> );
+pub struct Offer<P, Q> ( PhantomData<(P, Q)> );
 
 /// Enter a recursive environment
-pub struct Rec<R> ( PhantomData<R> );
+pub struct Rec<P> ( PhantomData<P> );
 
 /// Recurse. V indicates how many layers of the recursive environment we recurse
 /// out of.
-pub struct Var<V> ( PhantomData<V> );
+pub struct Var<N> ( PhantomData<N> );
 
 pub unsafe trait HasDual {
     type Dual;
@@ -127,20 +127,20 @@ unsafe impl HasDual for Eps {
     type Dual = Eps;
 }
 
-unsafe impl <A, T: HasDual> HasDual for Send<A, T> {
-    type Dual = Recv<A, T::Dual>;
+unsafe impl <A, P: HasDual> HasDual for Send<A, P> {
+    type Dual = Recv<A, P::Dual>;
 }
 
-unsafe impl <A, T: HasDual> HasDual for Recv<A, T> {
-    type Dual = Send<A, T::Dual>;
+unsafe impl <A, P: HasDual> HasDual for Recv<A, P> {
+    type Dual = Send<A, P::Dual>;
 }
 
-unsafe impl <R: HasDual, S: HasDual> HasDual for Choose<R, S> {
-    type Dual = Offer<R::Dual, S::Dual>;
+unsafe impl <P: HasDual, Q: HasDual> HasDual for Choose<P, Q> {
+    type Dual = Offer<P::Dual, Q::Dual>;
 }
 
-unsafe impl <R: HasDual, S: HasDual> HasDual for Offer<R, S> {
-    type Dual = Choose<R::Dual, S::Dual>;
+unsafe impl <P: HasDual, Q: HasDual> HasDual for Offer<P, Q> {
+    type Dual = Choose<P::Dual, Q::Dual>;
 }
 
 unsafe impl HasDual for Var<Z> {
@@ -151,8 +151,8 @@ unsafe impl <N> HasDual for Var<S<N>> {
     type Dual = Var<S<N>>; // TODO bound on N?
 }
 
-unsafe impl <T: HasDual> HasDual for Rec<T> {
-    type Dual = Rec<T::Dual>;
+unsafe impl <P: HasDual> HasDual for Rec<P> {
+    type Dual = Rec<P::Dual>;
 }
 
 impl<E> Chan<E, Eps> {
@@ -162,33 +162,34 @@ impl<E> Chan<E, Eps> {
     }
 }
 
-impl<E, T, A: marker::Send + 'static> Chan<E, Send<A, T>> {
+impl<E, P, A: marker::Send + 'static> Chan<E, Send<A, P>> {
     /// Send a value of type `A` over the channel. Returns a channel with
-    /// protocol `T`
-    pub fn send(self, v: A) -> Chan<E, T> {
+    /// protocol `P`
+    pub fn send(self, v: A) -> Chan<E, P> {
         unsafe_write_chan(&self, v);
-        unsafe { transmute(self) }
+        let Chan(tx, rx, _) = self;
+        Chan(tx, rx, PhantomData)
     }
 }
 
-impl<E, T, A: marker::Send + 'static> Chan<E, Recv<A, T>> {
+impl<E, P, A: marker::Send + 'static> Chan<E, Recv<A, P>> {
     /// Receives a value of type `A` from the channel. Returns a tuple
     /// containing the resulting channel and the received value.
-    pub fn recv(self) -> (Chan<E, T>, A) {
+    pub fn recv(self) -> (Chan<E, P>, A) {
         let v = unsafe_read_chan(&self);
         (unsafe { transmute(self) }, v)
     }
 }
 
-impl<E, R, S> Chan<E, Choose<R, S>> {
-    /// Perform an active choice, selecting protocol `R`.
-    pub fn sel1(self) -> Chan<E, R> {
+impl<E, P, Q> Chan<E, Choose<P, Q>> {
+    /// Perform an active choice, selecting protocol `P`.
+    pub fn sel1(self) -> Chan<E, P> {
         unsafe_write_chan(&self, true);
         unsafe { transmute(self) }
     }
 
-    /// Perform an active choice, selecting protocol `S`.
-    pub fn sel2(self) -> Chan<E, S> {
+    /// Perform an active choice, selecting protocol `Q`.
+    pub fn sel2(self) -> Chan<E, Q> {
         unsafe_write_chan(&self, false);
         unsafe { transmute(self) }
     }
@@ -243,10 +244,10 @@ impl<Z, A, B, C, D, E, F, G, H> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, 
     }
 }
 
-impl<E, R, S> Chan<E, Offer<R, S>> {
+impl<E, P, Q> Chan<E, Offer<P, Q>> {
     /// Passive choice. This allows the other end of the channel to select one
-    /// of two options for continuing the protocol: either `R` or `S`.
-    pub fn offer(self) -> Result<Chan<E, R>, Chan<E, S>> {
+    /// of two options for continuing the protocol: either `P` or `Q`.
+    pub fn offer(self) -> Result<Chan<E, P>, Chan<E, Q>> {
         let b = unsafe_read_chan(&self);
         if b {
             Ok(unsafe { transmute(self) })
@@ -256,24 +257,24 @@ impl<E, R, S> Chan<E, Offer<R, S>> {
     }
 }
 
-impl<E, R> Chan<E, Rec<R>> {
+impl<E, P> Chan<E, Rec<P>> {
     /// Enter a recursive environment, putting the current environment on the
     /// top of the environment stack.
-    pub fn enter(self) -> Chan<(R, E), R> {
+    pub fn enter(self) -> Chan<(P, E), P> {
         unsafe { transmute(self) }
     }
 }
 
-impl<E, R> Chan<(R, E), Var<Z>> {
+impl<E, P> Chan<(P, E), Var<Z>> {
     /// Recurse to the environment on the top of the environment stack.
-    pub fn zero(self) -> Chan<(R, E), R> {
+    pub fn zero(self) -> Chan<(P, E), P> {
         unsafe { transmute(self) }
     }
 }
 
-impl<E, R, V> Chan<(R, E), Var<S<V>>> {
+impl<E, P, N> Chan<(P, E), Var<S<N>>> {
     /// Pop the top environment from the environment stack.
-    pub fn succ(self) -> Chan<E, Var<V>> {
+    pub fn succ(self) -> Chan<E, Var<N>> {
         unsafe { transmute(self) }
     }
 }
@@ -328,15 +329,15 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
 /// interacted with (consumed) as long as the borrowing ChanSelect object
 /// exists. This is necessary to ensure memory safety and should not pose an
 ///
-/// The type parameter T is a return type, ie we store a value of some type T
+/// The type parameter P is a return type, ie we store a value of some type P
 /// that is returned in case its associated channels is selected on `wait()`
-pub struct ChanSelect<'c, T> {
-    chans: Vec<(&'c Chan<(), ()>, T)>,
+pub struct ChanSelect<'c, P> {
+    chans: Vec<(&'c Chan<(), ()>, P)>,
 }
 
 
-impl<'c, T> ChanSelect<'c, T> {
-    pub fn new() -> ChanSelect<'c, T> {
+impl<'c, P> ChanSelect<'c, P> {
+    pub fn new() -> ChanSelect<'c, P> {
         ChanSelect {
             chans: Vec::new()
         }
@@ -348,14 +349,14 @@ impl<'c, T> ChanSelect<'c, T> {
     /// is borrowed here (by virtue of move semantics).
     pub fn add_recv_ret<E, R, A: marker::Send>(&mut self,
                                                chan: &'c Chan<E, Recv<A, R>>,
-                                               ret: T)
+                                               ret: P)
     {
         self.chans.push((unsafe { transmute(chan) }, ret));
     }
 
-    pub fn add_offer_ret<E, R, S>(&mut self,
-                                  chan: &'c Chan<E, Offer<R, S>>,
-                                  ret: T)
+    pub fn add_offer_ret<E, R, Q>(&mut self,
+                                  chan: &'c Chan<E, Offer<R, Q>>,
+                                  ret: P)
     {
         self.chans.push((unsafe { transmute(chan) }, ret));
     }
@@ -364,7 +365,7 @@ impl<'c, T> ChanSelect<'c, T> {
     ///
     /// This method consumes the ChanSelect, freeing up the borrowed Receivers
     /// to be consumed.
-    pub fn wait(self) -> T {
+    pub fn wait(self) -> P {
         let sel = Select::new();
         let mut handles = Vec::with_capacity(self.chans.len());
         let mut map = HashMap::new();
@@ -396,15 +397,15 @@ impl<'c, T> ChanSelect<'c, T> {
 }
 
 impl<'c> ChanSelect<'c, usize> {
-    pub fn add_recv<E, R, A: marker::Send>(&mut self,
-                                           c: &'c Chan<E, Recv<A, R>>)
+    pub fn add_recv<E, P, A: marker::Send>(&mut self,
+                                           c: &'c Chan<E, Recv<A, P>>)
     {
         let index = self.chans.len();
         self.add_recv_ret(c, index);
     }
 
-    pub fn add_offer<E, R, S>(&mut self,
-                              c: &'c Chan<E, Offer<R, S>>)
+    pub fn add_offer<E, P, Q>(&mut self,
+                              c: &'c Chan<E, Offer<P, Q>>)
     {
         let index = self.chans.len();
         self.add_offer_ret(c, index);
@@ -413,11 +414,11 @@ impl<'c> ChanSelect<'c, usize> {
 
 /// Sets up an session typed communication channel. Should be paired with
 /// `request` for the corresponding client.
-pub fn accept<R>(tx: Sender<Chan<(), R>>) -> Option<Chan<(), R>> {
+pub fn accept<P>(tx: Sender<Chan<(), P>>) -> Option<Chan<(), P>> {
     borrow_accept(&tx)
 }
 
-pub fn borrow_accept<R>(tx: &Sender<Chan<(), R>>) -> Option<Chan<(), R>> {
+pub fn borrow_accept<P>(tx: &Sender<Chan<(), P>>) -> Option<Chan<(), P>> {
     let (tx1, rx1) = channel();
     let (tx2, rx2) = channel();
 
@@ -432,11 +433,11 @@ pub fn borrow_accept<R>(tx: &Sender<Chan<(), R>>) -> Option<Chan<(), R>> {
 
 /// Sets up an session typed communication channel. Should be paired with
 /// `accept` for the corresponding server.
-pub fn request<R: HasDual>(rx: Receiver<Chan<(), R>>) -> Option<Chan<(), R::Dual>> {
+pub fn request<P: HasDual>(rx: Receiver<Chan<(), P>>) -> Option<Chan<(), P::Dual>> {
     borrow_request(&rx)
 }
 
-pub fn borrow_request<R: HasDual>(rx: &Receiver<Chan<(), R>>) -> Option<Chan<(), R::Dual>> {
+pub fn borrow_request<P: HasDual>(rx: &Receiver<Chan<(), P>>) -> Option<Chan<(), P::Dual>> {
     match rx.recv() {
         // TODO Change to a normal transmute once
         // https://github.com/rust-lang/rust/issues/24459
@@ -447,7 +448,7 @@ pub fn borrow_request<R: HasDual>(rx: &Receiver<Chan<(), R>>) -> Option<Chan<(),
 }
 
 /// Returns two session channels
-pub fn session_channel<R: HasDual>() -> (Chan<(), R>, Chan<(), R::Dual>) {
+pub fn session_channel<P: HasDual>() -> (Chan<(), P>, Chan<(), P::Dual>) {
     let (tx1, rx1) = channel();
     let (tx2, rx2) = channel();
 
@@ -458,10 +459,10 @@ pub fn session_channel<R: HasDual>() -> (Chan<(), R>, Chan<(), R::Dual>) {
 }
 
 /// Connect two functions using a session typed channel.
-pub fn connect<F1, F2, R>(srv: F1, cli: F2)
-    where F1: Fn(Chan<(), R>) + marker::Send,
-          F2: Fn(Chan<(), R::Dual>) + marker::Send,
-          R: HasDual + marker::Send + 'static
+pub fn connect<F1, F2, P>(srv: F1, cli: F2)
+    where F1: Fn(Chan<(), P>) + marker::Send,
+          F2: Fn(Chan<(), P::Dual>) + marker::Send,
+          P: HasDual + marker::Send + 'static
 {
     let (tx, rx) = channel();
     let jg = scoped(move|| srv(accept(tx).unwrap()));
@@ -574,6 +575,7 @@ macro_rules! offer {
 /// ```
 ///
 /// ```rust
+/// #![feature(rand)]
 /// #[macro_use]
 /// extern crate rust_sessions;
 /// extern crate rand;
