@@ -413,11 +413,11 @@ impl<'c> ChanSelect<'c, usize> {
 
 /// Sets up an session typed communication channel. Should be paired with
 /// `request` for the corresponding client.
-pub fn accept<R>(tx: Sender<Chan<(), R>>) -> Option<Chan<(), R>> {
+pub fn accept<R: marker::Send>(tx: Sender<Chan<(), R>>) -> Option<Chan<(), R>> {
     borrow_accept(&tx)
 }
 
-pub fn borrow_accept<R>(tx: &Sender<Chan<(), R>>) -> Option<Chan<(), R>> {
+pub fn borrow_accept<R: marker::Send>(tx: &Sender<Chan<(), R>>) -> Option<Chan<(), R>> {
     let (tx1, rx1) = channel();
     let (tx2, rx2) = channel();
 
@@ -432,11 +432,11 @@ pub fn borrow_accept<R>(tx: &Sender<Chan<(), R>>) -> Option<Chan<(), R>> {
 
 /// Sets up an session typed communication channel. Should be paired with
 /// `accept` for the corresponding server.
-pub fn request<R: HasDual>(rx: Receiver<Chan<(), R>>) -> Option<Chan<(), R::Dual>> {
+pub fn request<R: HasDual + marker::Send>(rx: Receiver<Chan<(), R>>) -> Option<Chan<(), R::Dual>> {
     borrow_request(&rx)
 }
 
-pub fn borrow_request<R: HasDual>(rx: &Receiver<Chan<(), R>>) -> Option<Chan<(), R::Dual>> {
+pub fn borrow_request<R: HasDual + marker::Send>(rx: &Receiver<Chan<(), R>>) -> Option<Chan<(), R::Dual>> {
     match rx.recv() {
         // TODO Change to a normal transmute once
         // https://github.com/rust-lang/rust/issues/24459
