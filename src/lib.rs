@@ -67,9 +67,8 @@
 use std::marker;
 use std::thread::scoped;
 use std::mem::transmute;
-use std::sync::mpsc::{Sender, Receiver, channel};
+use std::sync::mpsc::{Sender, Receiver, channel, Select};
 use std::collections::HashMap;
-use std::sync::mpsc::Select;
 use std::marker::PhantomData;
 
 /// A session typed channel. `T` is the protocol and `E` is the environment,
