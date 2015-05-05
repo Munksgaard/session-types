@@ -167,8 +167,7 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Send<A, P>> {
     /// protocol `P`
     pub fn send(self, v: A) -> Chan<E, P> {
         unsafe_write_chan(&self, v);
-        let Chan(tx, rx, _) = self;
-        Chan(tx, rx, PhantomData)
+        unsafe { transmute(self) }
     }
 }
 
