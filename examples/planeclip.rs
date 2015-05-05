@@ -13,7 +13,6 @@ extern crate rand;
 
 use rust_sessions::*;
 
-use std::sync::mpsc::{Sender, Receiver, channel};
 use std::thread::spawn;
 
 #[derive(Debug, Copy, Clone, Rand)]
@@ -44,11 +43,11 @@ fn intersect(p1: Point, p2: Point, plane: Plane) -> Option<Point> {
 }
 
 type SendList<A> = Rec<Choose<Eps, Send<A, Var<Z>>>>;
+type RecvList<A> = Rec<Offer<Eps, Recv<A, Var<Z>>>>;
 
 fn sendlist<A: std::marker::Send+Copy+'static>
-    (tx: Sender<Chan<(), SendList<A>>>, xs: Vec<A>)
+    (c: Chan<(), SendList<A>>, xs: Vec<A>)
 {
-    let c = accept(tx).unwrap();
     let mut c = c.enter();
     for x in xs.iter() {
         let c1 = c.sel2().send(*x);
@@ -58,9 +57,8 @@ fn sendlist<A: std::marker::Send+Copy+'static>
 }
 
 fn recvlist<A: std::marker::Send+'static>
-    (rx: Receiver<Chan<(), SendList<A>>>) -> Vec<A>
+    (c: Chan<(), RecvList<A>>) -> Vec<A>
 {
-    let c = request(rx).unwrap();
     let mut v = Vec::new();
     let mut c = c.enter();
     loop {
@@ -81,12 +79,9 @@ fn recvlist<A: std::marker::Send+'static>
 }
 
 fn clipper(plane: Plane,
-           inrv: Receiver<Chan<(), SendList<Point>>>,
-           outrv: Sender<Chan<(), SendList<Point>>>)
+           ic: Chan<(), RecvList<Point>>,
+           oc: Chan<(), SendList<Point>>)
 {
-    let oc = accept(outrv).unwrap();
-    let ic = request(inrv).unwrap();
-
     let mut oc = oc.enter();
     let mut ic = ic.enter();
     let (pt0, mut pt);
@@ -131,12 +126,12 @@ fn clipper(plane: Plane,
 }
 
 fn clipmany(planes: Vec<Plane>, points: Vec<Point>) -> Vec<Point> {
-    let (tx, rx) = channel();
+    let (tx, rx) = session_channel();
     spawn(move || sendlist(tx, points));
     let mut rx = rx;
 
     for plane in planes.into_iter() {
-        let (tx2, rx2) = channel();
+        let (tx2, rx2) = session_channel();
         spawn(move || clipper(plane, rx, tx2));
         rx = rx2;
     }
