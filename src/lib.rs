@@ -1,4 +1,4 @@
-//! rust-sessions
+//! session_types
 //!
 //! This is an implementation of *session types* in Rust.
 //!
@@ -26,8 +26,8 @@
 //! `Chan<(), Send<i64, Recv<bool, Eps>>>`, and the full program could look like this:
 //!
 //! ```
-//! extern crate rust_sessions;
-//! use rust_sessions::*;
+//! extern crate session_types;
+//! use session_types::*;
 //!
 //! type Server = Recv<i64, Send<bool, Eps>>;
 //! type Client = Send<i64, Recv<bool, Eps>>;
@@ -473,8 +473,8 @@ pub fn connect<F1, F2, P>(srv: F1, cli: F2)
 /// we can use the `offer!` macro as follows:
 ///
 /// ```rust
-/// #[macro_use] extern crate rust_sessions;
-/// use rust_sessions::*;
+/// #[macro_use] extern crate session_types;
+/// use session_types::*;
 /// use std::thread::spawn;
 ///
 /// fn srv(c: Chan<(), Offer<Recv<u64, Eps>, Offer<Recv<String, Eps>, Eps>>>) {
@@ -530,8 +530,8 @@ macro_rules! offer {
 /// # Examples
 ///
 /// ```rust
-/// #[macro_use] extern crate rust_sessions;
-/// use rust_sessions::*;
+/// #[macro_use] extern crate session_types;
+/// use session_types::*;
 /// use std::thread::spawn;
 ///
 /// fn send_str(c: Chan<(), Send<String, Eps>>) {
@@ -570,11 +570,11 @@ macro_rules! offer {
 /// ```rust
 /// #![feature(rand)]
 /// #[macro_use]
-/// extern crate rust_sessions;
+/// extern crate session_types;
 /// extern crate rand;
 ///
 /// use std::thread::spawn;
-/// use rust_sessions::*;
+/// use session_types::*;
 ///
 /// type Igo = Choose<Send<String, Eps>, Send<u64, Eps>>;
 /// type Ugo = Offer<Recv<String, Eps>, Recv<u64, Eps>>;
