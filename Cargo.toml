@@ -8,8 +8,7 @@ authors = [ "Philip Munksgaard <pmunksgaard@gmail.com>"
 description = "An implementation of session types in Rust"
 repository = "https://github.com/Munksgaard/session-types"
 readme = "README.md"
-keywords = ["session", "types", "library", "channels", "concurrency",
-            "communication"]
+keywords = ["session", "types", "channels", "concurrency", "communication"]
 
 license = "GPL-2.0"
 
