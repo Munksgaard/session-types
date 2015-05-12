@@ -1,9 +1,17 @@
 [package]
-name = "rust_sessions"
+name = "session_types"
 version = "0.0.1"
 authors = [ "Philip Munksgaard <pmunksgaard@gmail.com>"
           , "Thomas Bracht Laumann Jespersen <laumann.thomas@gmail.com>"
           ]
+
+description = "An implementation of session types in Rust"
+repository = "https://github.com/Munksgaard/session-types"
+readme = "README.md"
+keywords = ["session", "types", "library", "channels", "concurrency",
+            "communication"]
+
+license = "GPL-2.0"
 
 [dev-dependencies]
 rand = "*"
