@@ -1,8 +1,8 @@
-#[macro_use] extern crate rust_sessions;
+#[macro_use] extern crate session_types;
 
 use std::thread::spawn;
 use std::borrow::ToOwned;
-use rust_sessions::*;
+use session_types::*;
 
 // recv and assert a value, then close the channel
 macro_rules! recv_assert_eq_close(

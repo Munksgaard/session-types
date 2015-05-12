@@ -8,10 +8,10 @@
 #![feature(plugin, custom_derive)]
 #![plugin(rand_macros)]
 
-extern crate rust_sessions;
+extern crate session_types;
 extern crate rand;
 
-use rust_sessions::*;
+use session_types::*;
 
 use std::thread::spawn;
 

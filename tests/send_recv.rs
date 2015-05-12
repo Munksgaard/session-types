@@ -1,5 +1,5 @@
-extern crate rust_sessions;
-use rust_sessions::*;
+extern crate session_types;
+use session_types::*;
 
 use std::thread::spawn;
 
