@@ -418,11 +418,7 @@ pub fn accept<P: HasDual>(tx: Sender<Chan<(), P::Dual>>) -> Option<Chan<(), P>> 
 }
 
 pub fn borrow_accept<P: HasDual>(tx: &Sender<Chan<(), P::Dual>>) -> Option<Chan<(), P>> {
-    let (tx1, rx1) = channel();
-    let (tx2, rx2) = channel();
-
-    let c1 = Chan(tx1, rx2, PhantomData);
-    let c2 = Chan(tx2, rx1, PhantomData);
+    let (c2, c1) = session_channel();
 
     match tx.send(c1) {
         Ok(_) => Some(c2),
