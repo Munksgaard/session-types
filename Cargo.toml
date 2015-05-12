@@ -8,3 +8,4 @@ authors = [ "Philip Munksgaard <pmunksgaard@gmail.com>"
 [dev-dependencies]
 rand = "*"
 rand_macros = "*"
+compiletest_rs = "*"
