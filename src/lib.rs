@@ -413,16 +413,12 @@ impl<'c> ChanSelect<'c, usize> {
 
 /// Sets up an session typed communication channel. Should be paired with
 /// `request` for the corresponding client.
-pub fn accept<P>(tx: Sender<Chan<(), P>>) -> Option<Chan<(), P>> {
+pub fn accept<P: HasDual>(tx: Sender<Chan<(), P::Dual>>) -> Option<Chan<(), P>> {
     borrow_accept(&tx)
 }
 
-pub fn borrow_accept<P>(tx: &Sender<Chan<(), P>>) -> Option<Chan<(), P>> {
-    let (tx1, rx1) = channel();
-    let (tx2, rx2) = channel();
-
-    let c1 = Chan(tx1, rx2, PhantomData);
-    let c2 = Chan(tx2, rx1, PhantomData);
+pub fn borrow_accept<P: HasDual>(tx: &Sender<Chan<(), P::Dual>>) -> Option<Chan<(), P>> {
+    let (c2, c1) = session_channel();
 
     match tx.send(c1) {
         Ok(_) => Some(c2),
@@ -432,16 +428,13 @@ pub fn borrow_accept<P>(tx: &Sender<Chan<(), P>>) -> Option<Chan<(), P>> {
 
 /// Sets up an session typed communication channel. Should be paired with
 /// `accept` for the corresponding server.
-pub fn request<P: HasDual>(rx: Receiver<Chan<(), P>>) -> Option<Chan<(), P::Dual>> {
+pub fn request<P: HasDual>(rx: Receiver<Chan<(), P>>) -> Option<Chan<(), P>> {
     borrow_request(&rx)
 }
 
-pub fn borrow_request<P: HasDual>(rx: &Receiver<Chan<(), P>>) -> Option<Chan<(), P::Dual>> {
+pub fn borrow_request<P: HasDual>(rx: &Receiver<Chan<(), P>>) -> Option<Chan<(), P>> {
     match rx.recv() {
-        // TODO Change to a normal transmute once
-        // https://github.com/rust-lang/rust/issues/24459
-        // has been addressed.
-        Ok(Chan(tx, rx, _)) => Some(Chan(tx, rx, PhantomData)),
+        Ok(c) => Some(c),
         _ => None
     }
 }
@@ -461,11 +454,12 @@ pub fn session_channel<P: HasDual>() -> (Chan<(), P>, Chan<(), P::Dual>) {
 pub fn connect<F1, F2, P>(srv: F1, cli: F2)
     where F1: Fn(Chan<(), P>) + marker::Send,
           F2: Fn(Chan<(), P::Dual>) + marker::Send,
-          P: HasDual + marker::Send + 'static
+          P: HasDual + marker::Send + 'static,
+          <P as HasDual>::Dual: HasDual + marker::Send + 'static
 {
     let (tx, rx) = channel();
-    let jg = scoped(move|| srv(accept(tx).unwrap()));
-    cli(request(rx).unwrap());
+    let jg = scoped(move|| srv(accept::<P>(tx).unwrap()));
+    cli(request::<P::Dual>(rx).unwrap());
     jg.join();
 }
 
