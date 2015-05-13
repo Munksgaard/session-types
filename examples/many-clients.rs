@@ -59,7 +59,4 @@ fn main() {
     drop(tx);
 
     server(rx);
-    for t in buf {
-        t.join().unwrap();
-    }
 }
