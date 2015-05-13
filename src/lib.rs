@@ -414,14 +414,14 @@ impl<'c> ChanSelect<'c, usize> {
 /// `request` for the corresponding client.
 pub fn accept<P>(tx: Sender<Chan<(), P::Dual>>) -> Option<Chan<(), P>>
     where P: HasDual + marker::Send,
-          <P as HasDual>::Dual: marker::Send
+          P::Dual: marker::Send
 {
     borrow_accept(&tx)
 }
 
-pub fn borrow_accept<P: HasDual + marker::Send>(tx: &Sender<Chan<(), P::Dual>>) -> Option<Chan<(), P>>
+pub fn borrow_accept<P>(tx: &Sender<Chan<(), P::Dual>>) -> Option<Chan<(), P>>
     where P: HasDual + marker::Send,
-          <P as HasDual>::Dual: marker::Send
+          P::Dual: marker::Send
 {
     let (c2, c1) = session_channel();
 
