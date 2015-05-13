@@ -20,12 +20,12 @@ fn server_handler(c: Chan<(), Server>) {
 fn server(rx: Receiver<Chan<(), Server>>) {
     let mut count = 0;
     loop {
-        match borrow_request(&rx) {
-            Some(c) => {
-                spawn(move || handler(c));
+        match rx.recv() {
+            Ok(c) => {
+                spawn(move || server_handler(c));
                 count += 1;
             },
-            None => break,
+            Err(_) => break,
         }
     }
     println!("Handled {} connections", count);
@@ -48,13 +48,16 @@ fn client_handler(c: Chan<(), Client>) {
 
 fn main() {
     let (tx, rx) = channel();
-    let mut buf = Vec::new();
 
     let n: u8 = random();
     println!("Spawning {} clients", n);
     for _ in 0..n {
         let tmp = tx.clone();
-        buf.push(spawn(move || client(accept(tmp).unwrap())));
+        spawn(move || {
+            let (c1, c2) = session_channel();
+            tmp.send(c1).unwrap();
+            client_handler(c2);
+        });
     }
     drop(tx);
 
