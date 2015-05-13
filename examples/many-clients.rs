@@ -7,7 +7,7 @@ use std::thread::spawn;
 use rand::random;
 
 type Server = Recv<u8, Choose<Send<u8, Eps>, Eps>>;
-type Client = Send<u8, Offer<Recv<u8, Eps>, Eps>>;
+type Client = <Server as HasDual>::Dual;
 
 fn handler(c: Chan<(), Server>) {
     let (c, n) = c.recv();
