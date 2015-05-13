@@ -2,7 +2,7 @@ extern crate session_types;
 extern crate rand;
 
 use session_types::*;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Receiver};
 use std::thread::spawn;
 use rand::random;
 
@@ -31,9 +31,7 @@ fn server(rx: Receiver<Chan<(), Server>>) {
     println!("Handled {} connections", count);
 }
 
-fn client(tx: Sender<Chan<(), Server>>) {
-    let c = accept(tx).unwrap();
-
+fn client(c: Chan<(), Client>) {
     let n = random();
     match c.send(n).offer() {
         Ok(c) => {
@@ -56,7 +54,7 @@ fn main() {
     println!("Spawning {} clients", n);
     for _ in 0..n {
         let tmp = tx.clone();
-        buf.push(spawn(move || client(tmp)));
+        buf.push(spawn(move || client(accept(tmp).unwrap())));
     }
     drop(tx);
 
