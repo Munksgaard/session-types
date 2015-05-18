@@ -330,13 +330,13 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
 ///
 /// The type parameter P is a return type, ie we store a value of some type P
 /// that is returned in case its associated channels is selected on `wait()`
-pub struct ChanSelect<'c, P> {
-    chans: Vec<(&'c Chan<(), ()>, P)>,
+pub struct ChanSelect<'c, T> {
+    chans: Vec<(&'c Chan<(), ()>, T)>,
 }
 
 
-impl<'c, P> ChanSelect<'c, P> {
-    pub fn new() -> ChanSelect<'c, P> {
+impl<'c, T> ChanSelect<'c, T> {
+    pub fn new() -> ChanSelect<'c, T> {
         ChanSelect {
             chans: Vec::new()
         }
@@ -346,16 +346,16 @@ impl<'c, P> ChanSelect<'c, P> {
     ///
     /// Once a channel has been added it cannot be interacted with as long as it
     /// is borrowed here (by virtue of move semantics).
-    pub fn add_recv_ret<E, R, A: marker::Send>(&mut self,
-                                               chan: &'c Chan<E, Recv<A, R>>,
-                                               ret: P)
+    pub fn add_recv_ret<E, P, A: marker::Send>(&mut self,
+                                               chan: &'c Chan<E, Recv<A, P>>,
+                                               ret: T)
     {
         self.chans.push((unsafe { transmute(chan) }, ret));
     }
 
-    pub fn add_offer_ret<E, R, Q>(&mut self,
-                                  chan: &'c Chan<E, Offer<R, Q>>,
-                                  ret: P)
+    pub fn add_offer_ret<E, P, Q>(&mut self,
+                                  chan: &'c Chan<E, Offer<P, Q>>,
+                                  ret: T)
     {
         self.chans.push((unsafe { transmute(chan) }, ret));
     }
@@ -364,7 +364,7 @@ impl<'c, P> ChanSelect<'c, P> {
     ///
     /// This method consumes the ChanSelect, freeing up the borrowed Receivers
     /// to be consumed.
-    pub fn wait(self) -> P {
+    pub fn wait(self) -> T {
         let sel = Select::new();
         let mut handles = Vec::with_capacity(self.chans.len());
         let mut map = HashMap::new();
