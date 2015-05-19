@@ -60,12 +60,10 @@
 //! }
 //! ```
 
-
 #![feature(std_misc)]
-#![feature(scoped)]
 
 use std::marker;
-use std::thread::scoped;
+use std::thread::spawn;
 use std::mem::transmute;
 use std::sync::mpsc::{Sender, Receiver, channel, Select};
 use std::collections::HashMap;
@@ -474,15 +472,15 @@ pub fn session_channel<P: HasDual>() -> (Chan<(), P>, Chan<(), P::Dual>) {
 
 /// Connect two functions using a session typed channel.
 pub fn connect<F1, F2, P>(srv: F1, cli: F2)
-    where F1: Fn(Chan<(), P>) + marker::Send,
+    where F1: Fn(Chan<(), P>) + marker::Send + 'static,
           F2: Fn(Chan<(), P::Dual>) + marker::Send,
           P: HasDual + marker::Send + 'static,
           <P as HasDual>::Dual: HasDual + marker::Send + 'static
 {
     let (tx, rx) = channel();
-    let jg = scoped(move || srv(accept::<P>(tx).unwrap()));
+    let t = spawn(move || srv(accept::<P>(tx).unwrap()));
     cli(request::<P::Dual>(rx).unwrap());
-    jg.join();
+    t.join().unwrap();
 }
 
 /// This macro is convenient for server-like protocols of the form:
