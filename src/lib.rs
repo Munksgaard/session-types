@@ -341,9 +341,9 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
 /// This builds a structure of channels that we wish to select over. This is
 /// structured in a way such that the channels selected over cannot be
 /// interacted with (consumed) as long as the borrowing ChanSelect object
-/// exists. This is necessary to ensure memory safety and should not pose an
+/// exists. This is necessary to ensure memory safety.
 ///
-/// The type parameter P is a return type, ie we store a value of some type P
+/// The type parameter T is a return type, ie we store a value of some type T
 /// that is returned in case its associated channels is selected on `wait()`
 pub struct ChanSelect<'c, T> {
     chans: Vec<(&'c Chan<(), ()>, T)>,
@@ -360,7 +360,7 @@ impl<'c, T> ChanSelect<'c, T> {
     /// Add a channel whose next step is `Recv`
     ///
     /// Once a channel has been added it cannot be interacted with as long as it
-    /// is borrowed here (by virtue of move semantics).
+    /// is borrowed here (by virtue of borrow checking and lifetimes).
     pub fn add_recv_ret<E, P, A: marker::Send>(&mut self,
                                                chan: &'c Chan<E, Recv<A, P>>,
                                                ret: T)
@@ -410,6 +410,9 @@ impl<'c, T> ChanSelect<'c, T> {
     }
 }
 
+/// Default use of ChanSelect works with usize and returns the index
+/// of the selected channel. This is also the implementation used by
+/// the `chan_select!` macro.
 impl<'c> ChanSelect<'c, usize> {
     pub fn add_recv<E, P, A: marker::Send>(&mut self,
                                            c: &'c Chan<E, Recv<A, P>>)
