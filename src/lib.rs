@@ -230,7 +230,8 @@ impl<Z, A, B, C, D, E> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, E>>>>> {
 }
 
 /// Convenience function. This is identical to `.sel2().sel2().sel2().sel2().sel2()`
-impl<Z, A, B, C, D, E, F> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, Choose<E, F>>>>>> {
+impl<Z, A, B, C, D, E, F> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D,
+                          Choose<E, F>>>>>> {
     #[must_use]
     pub fn skip5(self) -> Chan<Z, F> {
         self.sel2().sel2().sel2().sel2().sel2()
@@ -238,7 +239,8 @@ impl<Z, A, B, C, D, E, F> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, Choose
 }
 
 /// Convenience function.
-impl<Z, A, B, C, D, E, F, G> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, Choose<E, Choose<F, G>>>>>>> {
+impl<Z, A, B, C, D, E, F, G> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D,
+                             Choose<E, Choose<F, G>>>>>>> {
     #[must_use]
     pub fn skip6(self) -> Chan<Z, G> {
         self.sel2().sel2().sel2().sel2().sel2().sel2()
@@ -246,7 +248,8 @@ impl<Z, A, B, C, D, E, F, G> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, Cho
 }
 
 /// Convenience function.
-impl<Z, A, B, C, D, E, F, G, H> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, Choose<E, Choose<F, Choose<G, H>>>>>>>> {
+impl<Z, A, B, C, D, E, F, G, H> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D,
+                                        Choose<E, Choose<F, Choose<G, H>>>>>>>> {
     #[must_use]
     pub fn skip7(self) -> Chan<Z, H> {
         self.sel2().sel2().sel2().sel2().sel2().sel2().sel2()
@@ -437,7 +440,8 @@ pub fn accept<P: HasDual>(tx: Sender<Chan<(), P::Dual>>) -> Option<Chan<(), P>> 
 }
 
 #[must_use]
-pub fn borrow_accept<P: HasDual>(tx: &Sender<Chan<(), P::Dual>>) -> Option<Chan<(), P>> {
+pub fn borrow_accept<P: HasDual>(tx: &Sender<Chan<(), P::Dual>>)
+                                 -> Option<Chan<(), P>> {
     let (c2, c1) = session_channel();
 
     match tx.send(c1) {
@@ -652,7 +656,8 @@ macro_rules! chan_select {
             sel.wait()
         };
         let mut i = 0;
-        $( if index == { i += 1; i - 1 } { let ($c, $name) = $rx.recv(); $code } else )+
+        $( if index == { i += 1; i - 1 } { let ($c, $name) = $rx.recv(); $code }
+           else )+
         { unreachable!() }
     });
 
