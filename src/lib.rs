@@ -69,7 +69,7 @@ use std::sync::mpsc::{Sender, Receiver, channel, Select};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-/// A session typed channel. `T` is the protocol and `E` is the environment,
+/// A session typed channel. `P` is the protocol and `E` is the environment,
 /// containing potential recursion targets
 #[must_use]
 pub struct Chan<E, P> (Sender<Box<u8>>, Receiver<Box<u8>>, PhantomData<(E, P)>);
@@ -92,29 +92,29 @@ fn unsafe_read_chan<A: marker::Send + 'static, E, P>
 #[allow(missing_copy_implementations)]
 pub struct Z;
 
-/// Peano numbers: Plus one
-pub struct S<P> ( PhantomData<P> );
+/// Peano numbers: Increment
+pub struct S<N> ( PhantomData<N> );
 
 /// End of communication session (epsilon)
 #[allow(missing_copy_implementations)]
 pub struct Eps;
 
-/// Receive `A`, then `R`
+/// Receive `A`, then `P`
 pub struct Recv<A, P> ( PhantomData<(A, P)> );
 
-/// Send `A`, then `R`
+/// Send `A`, then `P`
 pub struct Send<A, P> ( PhantomData<(A, P)> );
 
-/// Active choice between `R` and `S`
+/// Active choice between `P` and `Q`
 pub struct Choose<P, Q> ( PhantomData<(P, Q)> );
 
-/// Passive choice (offer) between `R` and `S`
+/// Passive choice (offer) between `P` and `Q`
 pub struct Offer<P, Q> ( PhantomData<(P, Q)> );
 
 /// Enter a recursive environment
 pub struct Rec<P> ( PhantomData<P> );
 
-/// Recurse. V indicates how many layers of the recursive environment we recurse
+/// Recurse. N indicates how many layers of the recursive environment we recurse
 /// out of.
 pub struct Var<N> ( PhantomData<N> );
 
@@ -147,7 +147,7 @@ unsafe impl HasDual for Var<Z> {
 }
 
 unsafe impl <N> HasDual for Var<S<N>> {
-    type Dual = Var<S<N>>; // TODO bound on N?
+    type Dual = Var<S<N>>;
 }
 
 unsafe impl <P: HasDual> HasDual for Rec<P> {
