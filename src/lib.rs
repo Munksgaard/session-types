@@ -60,7 +60,7 @@
 //! }
 //! ```
 
-#![feature(std_misc)]
+#![feature(mpsc_select)]
 
 use std::marker;
 use std::thread::spawn;
