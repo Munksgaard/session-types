@@ -74,17 +74,17 @@ use std::marker::PhantomData;
 #[must_use]
 pub struct Chan<E, P> (Sender<Box<u8>>, Receiver<Box<u8>>, PhantomData<(E, P)>);
 
-fn unsafe_write_chan<A: marker::Send + 'static, E, P>
+unsafe fn write_chan<A: marker::Send + 'static, E, P>
     (&Chan(ref tx, _, _): &Chan<E, P>, x: A)
 {
-    let tx: &Sender<Box<A>> = unsafe { transmute(tx) };
+    let tx: &Sender<Box<A>> = transmute(tx);
     tx.send(Box::new(x)).unwrap();
 }
 
-fn unsafe_read_chan<A: marker::Send + 'static, E, P>
+unsafe fn read_chan<A: marker::Send + 'static, E, P>
     (&Chan(_, ref rx, _): &Chan<E, P>) -> A
 {
-    let rx: &Receiver<Box<A>> = unsafe { transmute(rx) };
+    let rx: &Receiver<Box<A>> = transmute(rx);
     *rx.recv().unwrap()
 }
 
@@ -166,8 +166,10 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Send<A, P>> {
     /// protocol `P`
     #[must_use]
     pub fn send(self, v: A) -> Chan<E, P> {
-        unsafe_write_chan(&self, v);
-        unsafe { transmute(self) }
+        unsafe {
+            write_chan(&self, v);
+            transmute(self)
+        }
     }
 }
 
@@ -176,8 +178,10 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Recv<A, P>> {
     /// containing the resulting channel and the received value.
     #[must_use]
     pub fn recv(self) -> (Chan<E, P>, A) {
-        let v = unsafe_read_chan(&self);
-        (unsafe { transmute(self) }, v)
+        unsafe {
+            let v = read_chan(&self);
+            (transmute(self), v)
+        }
     }
 }
 
@@ -185,15 +189,19 @@ impl<E, P, Q> Chan<E, Choose<P, Q>> {
     /// Perform an active choice, selecting protocol `P`.
     #[must_use]
     pub fn sel1(self) -> Chan<E, P> {
-        unsafe_write_chan(&self, true);
-        unsafe { transmute(self) }
+        unsafe {
+            write_chan(&self, true);
+            transmute(self)
+        }
     }
 
     /// Perform an active choice, selecting protocol `Q`.
     #[must_use]
     pub fn sel2(self) -> Chan<E, Q> {
-        unsafe_write_chan(&self, false);
-        unsafe { transmute(self) }
+        unsafe {
+            write_chan(&self, false);
+            transmute(self)
+        }
     }
 }
 
@@ -261,11 +269,13 @@ impl<E, P, Q> Chan<E, Offer<P, Q>> {
     /// of two options for continuing the protocol: either `P` or `Q`.
     #[must_use]
     pub fn offer(self) -> Result<Chan<E, P>, Chan<E, Q>> {
-        let b = unsafe_read_chan(&self);
-        if b {
-            Ok(unsafe { transmute(self) })
-        } else {
-            Err(unsafe { transmute(self) })
+        unsafe {
+            let b = read_chan(&self);
+            if b {
+                Ok(transmute(self))
+            } else {
+                Err(transmute(self))
+            }
         }
     }
 }
