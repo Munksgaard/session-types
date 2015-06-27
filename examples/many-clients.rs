@@ -34,12 +34,12 @@ fn server(rx: Receiver<Chan<(), Server>>) {
 fn client_handler(c: Chan<(), Client>) {
     let n = random();
     match c.send(n).offer() {
-        Ok(c) => {
+        Left(c) => {
             let (c, n2) = c.recv();
             c.close();
             println!("{} + 42 = {}", n, n2);
         },
-        Err(c) => {
+        Right(c) => {
             c.close();
             println!("{} + 42 is an overflow :(", n);
         }
