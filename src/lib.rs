@@ -69,6 +69,8 @@ use std::sync::mpsc::{Sender, Receiver, channel, Select};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
+pub use Branch::*;
+
 /// A session typed channel. `P` is the protocol and `E` is the environment,
 /// containing potential recursion targets
 #[must_use]
@@ -152,6 +154,11 @@ unsafe impl <N> HasDual for Var<S<N>> {
 
 unsafe impl <P: HasDual> HasDual for Rec<P> {
     type Dual = Rec<P::Dual>;
+}
+
+pub enum Branch<L, R> {
+    Left(L),
+    Right(R)
 }
 
 impl<E> Chan<E, Eps> {
@@ -260,12 +267,12 @@ impl<E, P, Q> Chan<E, Offer<P, Q>> {
     /// Passive choice. This allows the other end of the channel to select one
     /// of two options for continuing the protocol: either `P` or `Q`.
     #[must_use]
-    pub fn offer(self) -> Result<Chan<E, P>, Chan<E, Q>> {
+    pub fn offer(self) -> Branch<Chan<E, P>, Chan<E, Q>> {
         let b = unsafe_read_chan(&self);
         if b {
-            Ok(unsafe { transmute(self) })
+            Branch::Left(unsafe { transmute(self) })
         } else {
-            Err(unsafe { transmute(self) })
+            Branch::Right(unsafe { transmute(self) })
         }
     }
 }
@@ -539,8 +546,8 @@ macro_rules! offer {
         $id:ident, $branch:ident => $code:expr, $($t:tt)+
     ) => (
         match $id.offer() {
-            Ok($id) => $code,
-            Err($id) => offer!{ $id, $($t)+ }
+            Branch::Left($id) => $code,
+            Branch::Right($id) => offer!{ $id, $($t)+ }
         }
     );
     (
