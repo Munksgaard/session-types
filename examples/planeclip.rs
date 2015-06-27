@@ -63,11 +63,11 @@ fn recvlist<A: std::marker::Send+'static>
     let mut c = c.enter();
     loop {
         c = match c.offer() {
-            Ok(c) => {
+            Left(c) => {
                 c.close();
                 break;
             }
-            Err(c) => {
+            Right(c) => {
                 let (c, x) = c.recv();
                 v.push(x);
                 c.zero()
@@ -87,12 +87,12 @@ fn clipper(plane: Plane,
     let (pt0, mut pt);
 
     match ic.offer() {
-        Ok(c) => {
+        Left(c) => {
             c.close();
             oc.sel1().close();
             return
         }
-        Err(c) => {
+        Right(c) => {
             let (c, ptz) = c.recv();
             ic = c.zero();
             pt0 = ptz;
@@ -105,7 +105,7 @@ fn clipper(plane: Plane,
             oc = oc.sel2().send(pt).zero();
         }
         ic = match ic.offer() {
-            Ok(c) => {
+            Left(c) => {
                 if let Some(pt) = intersect(pt, pt0, plane) {
                     oc = oc.sel2().send(pt).zero();
                 }
@@ -113,7 +113,7 @@ fn clipper(plane: Plane,
                 oc.sel1().close();
                 break;
             }
-            Err(ic) => {
+            Right(ic) => {
                 let (ic, pt2) = ic.recv();
                 if let Some(pt) = intersect(pt, pt2, plane) {
                     oc = oc.sel2().send(pt).zero();
