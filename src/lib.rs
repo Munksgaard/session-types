@@ -449,39 +449,6 @@ impl<'c> ChanSelect<'c, usize> {
     }
 }
 
-/// Sets up an session typed communication channel. Should be paired with
-/// `request` for the corresponding client.
-#[must_use]
-pub fn accept<P: HasDual>(tx: Sender<Chan<(), P::Dual>>) -> Option<Chan<(), P>> {
-    borrow_accept(&tx)
-}
-
-#[must_use]
-pub fn borrow_accept<P: HasDual>(tx: &Sender<Chan<(), P::Dual>>)
-                                 -> Option<Chan<(), P>> {
-    let (c2, c1) = session_channel();
-
-    match tx.send(c1) {
-        Ok(_) => Some(c2),
-        _ => None
-    }
-}
-
-/// Sets up an session typed communication channel. Should be paired with
-/// `accept` for the corresponding server.
-#[must_use]
-pub fn request<P: HasDual>(rx: Receiver<Chan<(), P>>) -> Option<Chan<(), P>> {
-    borrow_request(&rx)
-}
-
-#[must_use]
-pub fn borrow_request<P: HasDual>(rx: &Receiver<Chan<(), P>>) -> Option<Chan<(), P>> {
-    match rx.recv() {
-        Ok(c) => Some(c),
-        _ => None
-    }
-}
-
 /// Returns two session channels
 #[must_use]
 pub fn session_channel<P: HasDual>() -> (Chan<(), P>, Chan<(), P::Dual>) {
@@ -501,9 +468,9 @@ pub fn connect<F1, F2, P>(srv: F1, cli: F2)
           P: HasDual + marker::Send + 'static,
           <P as HasDual>::Dual: HasDual + marker::Send + 'static
 {
-    let (tx, rx) = channel();
-    let t = spawn(move || srv(accept::<P>(tx).unwrap()));
-    cli(request::<P::Dual>(rx).unwrap());
+    let (c1, c2) = session_channel();
+    let t = spawn(move || srv(c1));
+    cli(c2);
     t.join().unwrap();
 }
 
