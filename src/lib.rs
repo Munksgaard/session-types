@@ -588,18 +588,16 @@ macro_rules! offer {
 ///     spawn(move|| send_str(tcs));
 ///     spawn(move|| send_usize(tcu));
 ///
-///     loop {
-///         chan_select! {
-///             (c, s) = rcs.recv() => {
-///                 assert_eq!("Hello, World!".to_string(), s);
-///                 c.close();
-///                 break
-///             },
-///             (c, i) = rcu.recv() => {
-///                 assert_eq!(42, i);
-///                 c.close();
-///                 break
-///             }
+///     chan_select! {
+///         (c, s) = rcs.recv() => {
+///             assert_eq!("Hello, World!".to_string(), s);
+///             c.close();
+///             rcu.recv().0.close();
+///         },
+///         (c, i) = rcu.recv() => {
+///             assert_eq!(42, i);
+///             c.close();
+///             rcs.recv().0.close();
 ///         }
 ///     }
 /// }
@@ -625,17 +623,33 @@ macro_rules! offer {
 ///                 let (c, s) = chan_one.recv();
 ///                 assert_eq!("Hello, World!".to_string(), s);
 ///                 c.close();
+///                 match chan_two.offer() {
+///                     Left(c) => c.recv().0.close(),
+///                     Right(c) => c.recv().0.close(),
+///                 }
 ///             },
 ///             Number => {
-///                 unreachable!()
+///                 chan_one.recv().0.close();
+///                 match chan_two.offer() {
+///                     Left(c) => c.recv().0.close(),
+///                     Right(c) => c.recv().0.close(),
+///                 }
 ///             }
 ///         },
 ///         _ign = chan_two.offer() => {
 ///             String => {
-///                 unreachable!()
+///                 chan_two.recv().0.close();
+///                 match chan_one.offer() {
+///                     Left(c) => c.recv().0.close(),
+///                     Right(c) => c.recv().0.close(),
+///                 }
 ///             },
 ///             Number => {
-///                 unreachable!()
+///                 chan_two.recv().0.close();
+///                 match chan_one.offer() {
+///                     Left(c) => c.recv().0.close(),
+///                     Right(c) => c.recv().0.close(),
+///                 }
 ///             }
 ///         }
 ///     }
@@ -648,6 +662,8 @@ macro_rules! offer {
 /// fn main() {
 ///     let (ca1, ca2) = session_channel();
 ///     let (cb1, cb2) = session_channel();
+///
+///     cb2.sel2().send(42).close();
 ///
 ///     spawn(move|| cli(ca2));
 ///
