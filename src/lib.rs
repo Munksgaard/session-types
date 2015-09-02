@@ -108,12 +108,10 @@ pub struct Recv<A, P> ( PhantomData<(A, P)> );
 pub struct Send<A, P> ( PhantomData<(A, P)> );
 
 /// Active choice between `P` and `Q`
-pub struct Choose2<P, Q> ( PhantomData<(P, Q)> );
-pub struct Choose3<P, Q, R> ( PhantomData<(P, Q, R)> );
+pub struct Choose<T> ( PhantomData<T> );
 
 /// Passive choice (offer) between `P` and `Q`
-pub struct Offer2<P, Q> ( PhantomData<(P, Q)> );
-pub struct Offer3<P, Q, R> ( PhantomData<(P, Q, R)> );
+pub struct Offer<T> ( PhantomData<T> );
 
 /// Enter a recursive environment
 pub struct Rec<P> ( PhantomData<P> );
@@ -138,20 +136,20 @@ unsafe impl <A, P: HasDual> HasDual for Recv<A, P> {
     type Dual = Send<A, P::Dual>;
 }
 
-unsafe impl <P: HasDual, Q: HasDual> HasDual for Choose2<P, Q> {
-    type Dual = Offer2<P::Dual, Q::Dual>;
+unsafe impl <P: HasDual, Q: HasDual> HasDual for Choose<(P, Q)> {
+    type Dual = Offer<(P::Dual, Q::Dual)>;
 }
 
-unsafe impl <P: HasDual, Q: HasDual, R: HasDual> HasDual for Choose3<P, Q, R> {
-    type Dual = Offer3<P::Dual, Q::Dual, R::Dual>;
+unsafe impl <P: HasDual, Q: HasDual, R: HasDual> HasDual for Choose<(P, Q, R)> {
+    type Dual = Offer<(P::Dual, Q::Dual, R::Dual)>;
 }
 
-unsafe impl <P: HasDual, Q: HasDual> HasDual for Offer2<P, Q> {
-    type Dual = Choose2<P::Dual, Q::Dual>;
+unsafe impl <P: HasDual, Q: HasDual> HasDual for Offer<(P, Q)> {
+    type Dual = Choose<(P::Dual, Q::Dual)>;
 }
 
-unsafe impl <P: HasDual, Q: HasDual, R: HasDual> HasDual for Offer3<P, Q, R> {
-    type Dual = Choose3<P::Dual, Q::Dual, R::Dual>;
+unsafe impl <P: HasDual, Q: HasDual, R: HasDual> HasDual for Offer<(P, Q, R)> {
+    type Dual = Choose<(P::Dual, Q::Dual, R::Dual)>;
 }
 
 unsafe impl HasDual for Var<Z> {
@@ -208,7 +206,7 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Recv<A, P>> {
     }
 }
 
-impl<E, P, Q> Chan<E, Choose2<P, Q>> {
+impl<E, P, Q> Chan<E, Choose<(P, Q)>> {
     /// Perform an active choice, selecting protocol `P`.
     #[must_use]
     pub fn sel1(self) -> Chan<E, P> {
@@ -228,7 +226,7 @@ impl<E, P, Q> Chan<E, Choose2<P, Q>> {
     }
 }
 
-impl<E, P, Q> Chan<E, Offer2<P, Q>> {
+impl<E, P, Q> Chan<E, Offer<(P, Q)>> {
     /// Passive choice. This allows the other end of the channel to select one
     /// of two options for continuing the protocol: either `P` or `Q`.
     #[must_use]
@@ -244,7 +242,7 @@ impl<E, P, Q> Chan<E, Offer2<P, Q>> {
     }
 }
 
-impl<E, P, Q, R> Chan<E, Choose3<P, Q, R>> {
+impl<E, P, Q, R> Chan<E, Choose<(P, Q, R)>> {
     /// Perform an active choice, selecting protocol `P`.
     #[must_use]
     pub fn sel1(self) -> Chan<E, P> {
@@ -273,7 +271,7 @@ impl<E, P, Q, R> Chan<E, Choose3<P, Q, R>> {
     }
 }
 
-impl<E, P, Q, R> Chan<E, Offer3<P, Q, R>> {
+impl<E, P, Q, R> Chan<E, Offer<(P, Q, R)>> {
     /// Passive choice. This allows the other end of the channel to select one
     /// of two options for continuing the protocol: either `P` or `Q`.
     #[must_use]
@@ -390,7 +388,7 @@ impl<'c, T> ChanSelect<'c, T> {
     }
 
     pub fn add_offer_ret<E, P, Q>(&mut self,
-                                  chan: &'c Chan<E, Offer2<P, Q>>,
+                                  chan: &'c Chan<E, Offer<(P, Q)>>,
                                   ret: T)
     {
         self.chans.push((unsafe { transmute(chan) }, ret));
@@ -443,7 +441,7 @@ impl<'c> ChanSelect<'c, usize> {
     }
 
     pub fn add_offer<E, P, Q>(&mut self,
-                              c: &'c Chan<E, Offer2<P, Q>>)
+                              c: &'c Chan<E, Offer<(P, Q)>>)
     {
         let index = self.chans.len();
         self.add_offer_ret(c, index);

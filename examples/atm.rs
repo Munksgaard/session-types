@@ -3,14 +3,14 @@ use session_types::*;
 use std::thread::spawn;
 
 type Id = String;
-type Atm = Recv<Id, Choose2<Rec<AtmInner>, Eps>>;
+type Atm = Recv<Id, Choose<(Rec<AtmInner>, Eps)>>;
 
-type AtmInner = Offer3<AtmDeposit,
+type AtmInner = Offer<(AtmDeposit,
                        AtmWithdraw,
-                       Eps>;
+                       Eps)>;
 
 type AtmDeposit = Recv<u64, Send<u64, Var<Z>>>;
-type AtmWithdraw = Recv<u64, Choose2<Var<Z>, Var<Z>>>;
+type AtmWithdraw = Recv<u64, Choose<(Var<Z>, Var<Z>)>>;
 
 type Client = <Atm as HasDual>::Dual;
 
