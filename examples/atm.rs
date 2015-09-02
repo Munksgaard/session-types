@@ -3,16 +3,14 @@ use session_types::*;
 use std::thread::spawn;
 
 type Id = String;
-type Atm = Recv<Id, Choose<Rec<AtmInner>, Eps>>;
+type Atm = Recv<Id, Choose2<Rec<AtmInner>, Eps>>;
 
-type AtmInner = Offer<AtmDeposit,
-                Offer<AtmWithdraw,
-                Offer<AtmBalance,
-                      Eps>>>;
+type AtmInner = Offer3<AtmDeposit,
+                       AtmWithdraw,
+                       Eps>;
 
 type AtmDeposit = Recv<u64, Send<u64, Var<Z>>>;
-type AtmWithdraw = Recv<u64, Choose<Var<Z>, Var<Z>>>;
-type AtmBalance = Send<u64, Var<Z>>;
+type AtmWithdraw = Recv<u64, Choose2<Var<Z>, Var<Z>>>;
 
 type Client = <Atm as HasDual>::Dual;
 
@@ -30,59 +28,53 @@ fn atm(c: Chan<(), Atm>) {
         c.sel1().enter()
     };
     let mut balance = 0;
+
     loop {
-        c = offer! {
-            c,
-            Deposit => {
+        c = match c.offer() {
+            Branch3::B1(c) => {
                 let (c, amt) = c.recv();
-                balance += amt;
-                c.send(balance).zero()
+                balance = amt;
+                c.send(balance).zero()   // c.send(new_bal): Chan<(AtmInner, ()) Var<Z>>
             },
-            Withdraw => {
+            Branch3::B2(c) => {
                 let (c, amt) = c.recv();
-                if amt > balance {
-                    c.sel2().zero()
-                } else {
-                    balance -= amt;
+                if amt <= balance {
+                    balance = balance - amt;
                     c.sel1().zero()
+                } else {
+                    c.sel2().zero()
                 }
             },
-            Balance => {
-                c.send(balance).zero()
-            },
-            Quit => {
-                c.close();
-                break
-            }
-        }
+            Branch3::B3(c) => { c.close(); break }
+        };
     }
 }
 
 fn deposit_client(c: Chan<(), Client>) {
     let c = match c.send("Deposit Client".to_string()).offer() {
-        Left(c) => c.enter(),
-        Right(_) => panic!("deposit_client: expected to be approved")
+        B1(c) => c.enter(),
+        B2(_) => panic!("deposit_client: expected to be approved")
     };
 
     let (c, new_balance) = c.sel1().send(200).recv();
     println!("deposit_client: new balance: {}", new_balance);
-    c.zero().skip3().close();
+    c.zero().sel3().close();
 }
 
 fn withdraw_client(c: Chan<(), Client>) {
     let c = match c.send("Withdraw Client".to_string()).offer() {
-        Left(c) => c.enter(),
-        Right(_) => panic!("withdraw_client: expected to be approved")
+        B1(c) => c.enter(),
+        B2(_) => panic!("withdraw_client: expected to be approved")
     };
 
-    match c.sel2().sel1().send(100).offer() {
-        Left(c) => {
+    match c.sel2().send(100).offer() {
+        B1(c) => {
             println!("withdraw_client: Successfully withdrew 100");
-            c.zero().skip3().close();
+            c.zero().sel3().close();
         }
-        Right(c) => {
+        B2(c) => {
             println!("withdraw_client: Could not withdraw. Depositing instead.");
-            c.zero().sel1().send(50).recv().0.zero().skip3().close();
+            c.zero().sel1().send(50).recv().0.zero().sel3().close();
         }
     }
 }
