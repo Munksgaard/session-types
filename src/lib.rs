@@ -69,7 +69,7 @@ use std::sync::mpsc::{Sender, Receiver, channel, Select};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-pub use Branch::*;
+pub use Branch2::*;
 
 /// A session typed channel. `P` is the protocol and `E` is the environment,
 /// containing potential recursion targets
@@ -108,10 +108,12 @@ pub struct Recv<A, P> ( PhantomData<(A, P)> );
 pub struct Send<A, P> ( PhantomData<(A, P)> );
 
 /// Active choice between `P` and `Q`
-pub struct Choose<P, Q> ( PhantomData<(P, Q)> );
+pub struct Choose2<P, Q> ( PhantomData<(P, Q)> );
+pub struct Choose3<P, Q, R> ( PhantomData<(P, Q, R)> );
 
 /// Passive choice (offer) between `P` and `Q`
-pub struct Offer<P, Q> ( PhantomData<(P, Q)> );
+pub struct Offer2<P, Q> ( PhantomData<(P, Q)> );
+pub struct Offer3<P, Q, R> ( PhantomData<(P, Q, R)> );
 
 /// Enter a recursive environment
 pub struct Rec<P> ( PhantomData<P> );
@@ -136,12 +138,20 @@ unsafe impl <A, P: HasDual> HasDual for Recv<A, P> {
     type Dual = Send<A, P::Dual>;
 }
 
-unsafe impl <P: HasDual, Q: HasDual> HasDual for Choose<P, Q> {
-    type Dual = Offer<P::Dual, Q::Dual>;
+unsafe impl <P: HasDual, Q: HasDual> HasDual for Choose2<P, Q> {
+    type Dual = Offer2<P::Dual, Q::Dual>;
 }
 
-unsafe impl <P: HasDual, Q: HasDual> HasDual for Offer<P, Q> {
-    type Dual = Choose<P::Dual, Q::Dual>;
+unsafe impl <P: HasDual, Q: HasDual, R: HasDual> HasDual for Choose3<P, Q, R> {
+    type Dual = Offer3<P::Dual, Q::Dual, R::Dual>;
+}
+
+unsafe impl <P: HasDual, Q: HasDual> HasDual for Offer2<P, Q> {
+    type Dual = Choose2<P::Dual, Q::Dual>;
+}
+
+unsafe impl <P: HasDual, Q: HasDual, R: HasDual> HasDual for Offer3<P, Q, R> {
+    type Dual = Choose3<P::Dual, Q::Dual, R::Dual>;
 }
 
 unsafe impl HasDual for Var<Z> {
@@ -156,9 +166,15 @@ unsafe impl <P: HasDual> HasDual for Rec<P> {
     type Dual = Rec<P::Dual>;
 }
 
-pub enum Branch<L, R> {
-    Left(L),
-    Right(R)
+pub enum Branch2<B1, B2> {
+    B1(B1),
+    B2(B2),
+}
+
+pub enum Branch3<B1, B2, B3> {
+    B1(B1),
+    B2(B2),
+    B3(B3),
 }
 
 impl<E> Chan<E, Eps> {
@@ -192,12 +208,12 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Recv<A, P>> {
     }
 }
 
-impl<E, P, Q> Chan<E, Choose<P, Q>> {
+impl<E, P, Q> Chan<E, Choose2<P, Q>> {
     /// Perform an active choice, selecting protocol `P`.
     #[must_use]
     pub fn sel1(self) -> Chan<E, P> {
         unsafe {
-            write_chan(&self, true);
+            write_chan(&self, 1u8);
             transmute(self)
         }
     }
@@ -206,82 +222,67 @@ impl<E, P, Q> Chan<E, Choose<P, Q>> {
     #[must_use]
     pub fn sel2(self) -> Chan<E, Q> {
         unsafe {
-            write_chan(&self, false);
+            write_chan(&self, 2u8);
             transmute(self)
         }
     }
 }
 
-/// Convenience function. This is identical to `.sel2()`
-impl<Z, A, B> Chan<Z, Choose<A, B>> {
-    #[must_use]
-    pub fn skip(self) -> Chan<Z, B> {
-        self.sel2()
-    }
-}
-
-/// Convenience function. This is identical to `.sel2().sel2()`
-impl<Z, A, B, C> Chan<Z, Choose<A, Choose<B, C>>> {
-    #[must_use]
-    pub fn skip2(self) -> Chan<Z, C> {
-        self.sel2().sel2()
-    }
-}
-
-/// Convenience function. This is identical to `.sel2().sel2().sel2()`
-impl<Z, A, B, C, D> Chan<Z, Choose<A, Choose<B, Choose<C, D>>>> {
-    #[must_use]
-    pub fn skip3(self) -> Chan<Z, D> {
-        self.sel2().sel2().sel2()
-    }
-}
-
-/// Convenience function. This is identical to `.sel2().sel2().sel2().sel2()`
-impl<Z, A, B, C, D, E> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, E>>>>> {
-    #[must_use]
-    pub fn skip4(self) -> Chan<Z, E> {
-        self.sel2().sel2().sel2().sel2()
-    }
-}
-
-/// Convenience function. This is identical to `.sel2().sel2().sel2().sel2().sel2()`
-impl<Z, A, B, C, D, E, F> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D,
-                          Choose<E, F>>>>>> {
-    #[must_use]
-    pub fn skip5(self) -> Chan<Z, F> {
-        self.sel2().sel2().sel2().sel2().sel2()
-    }
-}
-
-/// Convenience function.
-impl<Z, A, B, C, D, E, F, G> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D,
-                             Choose<E, Choose<F, G>>>>>>> {
-    #[must_use]
-    pub fn skip6(self) -> Chan<Z, G> {
-        self.sel2().sel2().sel2().sel2().sel2().sel2()
-    }
-}
-
-/// Convenience function.
-impl<Z, A, B, C, D, E, F, G, H> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D,
-                                        Choose<E, Choose<F, Choose<G, H>>>>>>>> {
-    #[must_use]
-    pub fn skip7(self) -> Chan<Z, H> {
-        self.sel2().sel2().sel2().sel2().sel2().sel2().sel2()
-    }
-}
-
-impl<E, P, Q> Chan<E, Offer<P, Q>> {
+impl<E, P, Q> Chan<E, Offer2<P, Q>> {
     /// Passive choice. This allows the other end of the channel to select one
     /// of two options for continuing the protocol: either `P` or `Q`.
     #[must_use]
-    pub fn offer(self) -> Branch<Chan<E, P>, Chan<E, Q>> {
+    pub fn offer(self) -> Branch2<Chan<E, P>, Chan<E, Q>> {
         unsafe {
-            let b = read_chan(&self);
-            if b {
-                Branch::Left(transmute(self))
+            let b: u8 = read_chan(&self);
+            if b == 1u8 {
+                Branch2::B1(transmute(self))
             } else {
-                Branch::Right(transmute(self))
+                Branch2::B2(transmute(self))
+            }
+        }
+    }
+}
+
+impl<E, P, Q, R> Chan<E, Choose3<P, Q, R>> {
+    /// Perform an active choice, selecting protocol `P`.
+    #[must_use]
+    pub fn sel1(self) -> Chan<E, P> {
+        unsafe {
+            write_chan(&self, 1u8);
+            transmute(self)
+        }
+    }
+
+    /// Perform an active choice, selecting protocol `Q`.
+    #[must_use]
+    pub fn sel2(self) -> Chan<E, Q> {
+        unsafe {
+            write_chan(&self, 2u8);
+            transmute(self)
+        }
+    }
+
+    /// Perform an active choice, selecting protocol `R`.
+    #[must_use]
+    pub fn sel3(self) -> Chan<E, R> {
+        unsafe {
+            write_chan(&self, 3u8);
+            transmute(self)
+        }
+    }
+}
+
+impl<E, P, Q, R> Chan<E, Offer3<P, Q, R>> {
+    /// Passive choice. This allows the other end of the channel to select one
+    /// of two options for continuing the protocol: either `P` or `Q`.
+    #[must_use]
+    pub fn offer(self) -> Branch3<Chan<E, P>, Chan<E, Q>, Chan<E, R>> {
+        unsafe {
+            match read_chan(&self) {
+                1u8 => Branch3::B1(transmute(self)),
+                2u8 => Branch3::B2(transmute(self)),
+                _ =>   Branch3::B3(transmute(self))
             }
         }
     }
@@ -389,7 +390,7 @@ impl<'c, T> ChanSelect<'c, T> {
     }
 
     pub fn add_offer_ret<E, P, Q>(&mut self,
-                                  chan: &'c Chan<E, Offer<P, Q>>,
+                                  chan: &'c Chan<E, Offer2<P, Q>>,
                                   ret: T)
     {
         self.chans.push((unsafe { transmute(chan) }, ret));
@@ -442,7 +443,7 @@ impl<'c> ChanSelect<'c, usize> {
     }
 
     pub fn add_offer<E, P, Q>(&mut self,
-                              c: &'c Chan<E, Offer<P, Q>>)
+                              c: &'c Chan<E, Offer2<P, Q>>)
     {
         let index = self.chans.len();
         self.add_offer_ret(c, index);
