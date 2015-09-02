@@ -161,10 +161,37 @@ pub enum Branch<L, R> {
     Right(R)
 }
 
+impl <E, P> Drop for Chan<E, P> {
+    fn drop(&mut self) {
+        panic!("Session channel prematurely dropped");
+    }
+}
+
 impl<E> Chan<E, Eps> {
     /// Close a channel. Should always be used at the end of your program.
-    pub fn close(self) {
-        // Consume `c`
+    pub fn close(mut self) {
+        // This method cleans up the channel without running the panicky destructor
+        // In essence, it calls the drop glue bypassing the `Drop::drop` method
+        use std::mem;
+
+        // Create some dummy values to place the real things inside
+        // This is safe because nobody will read these
+        // mem::swap uses a similar technique (also paired with `forget()`)
+        let mut sender = unsafe { mem::uninitialized() };
+        let mut receiver = unsafe { mem::uninitialized() };
+
+        // Extract the internal sender/receiver so that we can drop them
+        // We cannot drop directly since moving out of a type
+        // that implements `Drop` is disallowed
+        mem::swap(&mut self.0, &mut sender);
+        mem::swap(&mut self.1, &mut receiver);
+
+        drop(sender);drop(receiver); // drop them
+
+        // Ensure Chan destructors don't run so that we don't panic
+        // This also ensures that the uninitialized values don't get
+        // read at any point
+        mem::forget(self);
     }
 }
 
