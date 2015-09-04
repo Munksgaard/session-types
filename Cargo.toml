@@ -10,7 +10,7 @@ repository = "https://github.com/Munksgaard/session-types"
 readme = "README.md"
 keywords = ["session", "types", "channels", "concurrency", "communication"]
 
-license = "GPL-2.0"
+license = "MIT"
 
 [dev-dependencies]
 rand = "*"
