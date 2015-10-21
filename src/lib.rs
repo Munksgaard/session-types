@@ -97,6 +97,23 @@ pub struct Z;
 /// Peano numbers: Increment
 pub struct S<N> ( PhantomData<N> );
 
+
+trait Pop<N> {
+    type Head;
+    type Tail;
+}
+
+impl<A, B> Pop<Z> for (A, B) {
+    type Head = A;
+    type Tail = (A, B);
+}
+
+impl<A, B: Pop<N>, N> Pop<S<N>> for (A, B) {
+    type Head = B::Head;
+    type Tail = B::Tail;
+}
+
+
 /// End of communication session (epsilon)
 #[allow(missing_copy_implementations)]
 pub struct Eps;
@@ -312,6 +329,14 @@ impl<E, P, N> Chan<(P, E), Var<S<N>>> {
     }
 }
 
+impl<E: Pop<N>, N> Chan<E, Var<N>> {
+    /// Pop the environment, restoring the protocol N layers of recursion above us.
+    #[must_use]
+    pub fn pop(self) -> Chan<E::Tail, E::Head> {
+        Chan(self.0, self.1, PhantomData)
+    }
+}
+
 /// Homogeneous select. We have a vector of channels, all obeying the same
 /// protocol (and in the exact same point of the protocol), wait for one of them
 /// to receive. Removes the receiving channel from the vector and returns both
@@ -370,7 +395,7 @@ pub struct ChanSelect<'c, T> {
 }
 
 
-impl<'c, T> ChanSelect<'c, T> {
+impl<'c, T: 'c> ChanSelect<'c, T> {
     pub fn new() -> ChanSelect<'c, T> {
         ChanSelect {
             chans: Vec::new()
