@@ -9,7 +9,7 @@ use session_types::*;
 use std::thread::spawn;
 
 type Srv = Offer<Eps, Recv<String, Var<Z>>>;
-fn srv(c: Chan<(), Rec<Srv>>) {
+fn srv<'run>(c: Chan2<'run, (), Rec<Srv>>) -> Complete<'run, Rec<Srv>> {
 
     let mut c = c.enter();
 
@@ -17,8 +17,7 @@ fn srv(c: Chan<(), Rec<Srv>>) {
         c = offer!{ c,
             CLOSE => {
                 println!("Closing server.");
-                c.close();
-                break
+                return c.close();
             },
             RECV => {
                 let (c, s) = c.recv();
@@ -30,9 +29,9 @@ fn srv(c: Chan<(), Rec<Srv>>) {
 }
 
 type Cli = <Srv as HasDual>::Dual;
-fn cli(c: Chan<(), Rec<Cli>>) {
+fn cli<'run>(c: Chan2<'run, (), Rec<Cli>>) -> Complete<'run, Rec<Cli>> {
 
-    let mut stdin = std::io::stdin();
+    let stdin = std::io::stdin();
     let mut count = 0usize;
 
     let mut c = c.enter();
@@ -45,9 +44,9 @@ fn cli(c: Chan<(), Rec<Cli>>) {
         match &buf[..] {
             "q" => {
                 let c = c.sel2().send(format!("{} lines sent", count));
-                c.zero().sel1().close();
+                let proof = c.zero().sel1().close();
                 println!("Client quitting");
-                break;
+                return proof;
             }
             _ => {
                 c = c.sel2().send(buf.clone()).zero();

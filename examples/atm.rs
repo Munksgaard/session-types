@@ -20,12 +20,11 @@ fn approved(id: &Id) -> bool {
     !id.is_empty()
 }
 
-fn atm(c: Chan<(), Atm>) {
+fn atm<'run>(c: Chan2<'run, (), Atm>) -> Complete<'run, Atm> {
     let mut c = {
         let (c, id) = c.recv();
         if !approved(&id) {
-            c.sel2().close();
-            return;
+            return c.sel2().close();
         }
         c.sel1().enter()
     };
@@ -51,14 +50,13 @@ fn atm(c: Chan<(), Atm>) {
                 c.send(balance).zero()
             },
             Quit => {
-                c.close();
-                break
+                return c.close();
             }
         }
     }
 }
 
-fn deposit_client(c: Chan<(), Client>) {
+fn deposit_client<'run>(c: Chan2<'run, (), Client>) -> Complete<'run, Client> {
     let c = match c.send("Deposit Client".to_string()).offer() {
         Left(c) => c.enter(),
         Right(_) => panic!("deposit_client: expected to be approved")
@@ -66,10 +64,10 @@ fn deposit_client(c: Chan<(), Client>) {
 
     let (c, new_balance) = c.sel1().send(200).recv();
     println!("deposit_client: new balance: {}", new_balance);
-    c.zero().skip3().close();
+    return c.zero().skip3().close();
 }
 
-fn withdraw_client(c: Chan<(), Client>) {
+fn withdraw_client<'run>(c: Chan2<'run, (), Client>) -> Complete<'run, Client> {
     let c = match c.send("Withdraw Client".to_string()).offer() {
         Left(c) => c.enter(),
         Right(_) => panic!("withdraw_client: expected to be approved")
@@ -78,11 +76,11 @@ fn withdraw_client(c: Chan<(), Client>) {
     match c.sel2().sel1().send(100).offer() {
         Left(c) => {
             println!("withdraw_client: Successfully withdrew 100");
-            c.zero().skip3().close();
+            return c.zero().skip3().close();
         }
         Right(c) => {
             println!("withdraw_client: Could not withdraw. Depositing instead.");
-            c.zero().sel1().send(50).recv().0.zero().skip3().close();
+            return c.zero().sel1().send(50).recv().0.zero().skip3().close();
         }
     }
 }

@@ -5,7 +5,7 @@ use std::sync::mpsc::channel;
 
 use session_types::*;
 
-fn srv(c: Chan<(), Recv<u8, Eps>>) {
+fn srv(c: Chan2<'static, (), Recv<u8, Eps>>) {
     let (c, x) = c.recv();
     c.close();
 }

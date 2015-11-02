@@ -23,7 +23,7 @@
 //!
 //! Our session type library allows the user to create channels that adhere to a
 //! specified protocol. For example, a channel like the above would have the type
-//! `Chan<(), Send<i64, Recv<bool, Eps>>>`, and the full program could look like this:
+//! `Chan2<'run_marker, (), Send<i64, Recv<bool, Eps>>>`, and the full program could look like this:
 //!
 //! ```
 //! extern crate session_types;
@@ -32,16 +32,16 @@
 //! type Server = Recv<i64, Send<bool, Eps>>;
 //! type Client = Send<i64, Recv<bool, Eps>>;
 //!
-//! fn srv(c: Chan<(), Server>) {
+//! fn srv<'run_marker>(c: Chan2<'run_marker, (), Server>) -> Complete<'run_marker, Server> {
 //!     let (c, n) = c.recv();
 //!     if n % 2 == 0 {
-//!         c.send(true).close()
+//!         return c.send(true).close()
 //!     } else {
-//!         c.send(false).close()
+//!         return c.send(false).close()
 //!     }
 //! }
 //!
-//! fn cli(c: Chan<(), Client>) {
+//! fn cli<'run_marker>(c: Chan2<'run_marker, (), Client>) -> Complete<'run_marker, Client> {
 //!     let n = 42;
 //!     let c = c.send(n);
 //!     let (c, b) = c.recv();
@@ -52,7 +52,7 @@
 //!         println!("{} is odd", n);
 //!     }
 //!
-//!     c.close();
+//!     return c.close();
 //! }
 //!
 //! fn main() {
@@ -71,20 +71,45 @@ use std::marker::PhantomData;
 
 pub use Branch::*;
 
+/// Protocol run finished marker type. Should never be instantiated manually.
+/// extern crate session_types;
+/// use session_types::*;
+///
+/// type Messenger = Send<i64, Send<bool, Eps>>;
+///
+/// fn send_some_send_all<'run_some, 'run_all>(c1: Chan2<'run_some, (), Messenger>, c2: Chan2<'run_all, (), Messenger>) -> (Chan<'run_some, Messenger, (), Send<bool, Eps>>, Complete<'run_all, Messenger>) {
+///     return (c1.send(1), c2.send(1).send(true).close());
+/// }
+///
+/// fn main() {
+///     let (tx1, _) = session_channel();
+///     let (tx2, _) = session_channel();
+///     send_some_send_all(tx1, tx2);
+/// }
+pub enum Complete<'run_marker, Protocol> { ShouldNotUse(PhantomData<(&'run_marker (), Protocol)>) }
+
 /// A session typed channel. `P` is the protocol and `E` is the environment,
 /// containing potential recursion targets
+///
+/// 'run_marker and TopP intended to identify a run of a protocol.
 #[must_use]
-pub struct Chan<E, P> (Sender<Box<u8>>, Receiver<Box<u8>>, PhantomData<(E, P)>);
+pub struct Chan<'run_marker, TopP, E, P> (Sender<Box<u8>>, Receiver<Box<u8>>, PhantomData<(&'run_marker (), TopP, E, P)>);
 
-unsafe fn write_chan<A: marker::Send + 'static, E, P>
-    (&Chan(ref tx, _, _): &Chan<E, P>, x: A)
+/// Helper for when the top protocol is the protocol.
+pub type Chan2<'run_marker, E, P> = Chan<'run_marker, P, E, P>;
+
+/// Helper for when the run marker is not wanted.
+pub type ChanS<E, P> = Chan<'static, P, E, P>;
+
+unsafe fn write_chan<'run_marker, TopP, A: marker::Send + 'static, E, P>
+    (&Chan(ref tx, _, _): &Chan<'run_marker, TopP, E, P>, x: A)
 {
     let tx: &Sender<Box<A>> = transmute(tx);
     tx.send(Box::new(x)).unwrap();
 }
 
-unsafe fn read_chan<A: marker::Send + 'static, E, P>
-    (&Chan(_, ref rx, _): &Chan<E, P>) -> A
+unsafe fn read_chan<'run_marker, TopP, A: marker::Send + 'static, E, P>
+    (&Chan(_, ref rx, _): &Chan<'run_marker, TopP, E, P>) -> A
 {
     let rx: &Receiver<Box<A>> = transmute(rx);
     *rx.recv().unwrap()
@@ -161,18 +186,20 @@ pub enum Branch<L, R> {
     Right(R)
 }
 
-impl<E> Chan<E, Eps> {
+impl<'run_marker, TopP, E> Chan<'run_marker, TopP, E, Eps> {
     /// Close a channel. Should always be used at the end of your program.
-    pub fn close(self) {
+    #[must_use]
+    pub fn close(self) -> Complete<'run_marker, TopP> {
         // Consume `c`
+	return Complete::ShouldNotUse(PhantomData);
     }
 }
 
-impl<E, P, A: marker::Send + 'static> Chan<E, Send<A, P>> {
+impl<'run_marker, TopP, E, P, A: marker::Send + 'static> Chan<'run_marker, TopP, E, Send<A, P>> {
     /// Send a value of type `A` over the channel. Returns a channel with
     /// protocol `P`
     #[must_use]
-    pub fn send(self, v: A) -> Chan<E, P> {
+    pub fn send(self, v: A) -> Chan<'run_marker, TopP, E, P> {
         unsafe {
             write_chan(&self, v);
             transmute(self)
@@ -180,11 +207,11 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Send<A, P>> {
     }
 }
 
-impl<E, P, A: marker::Send + 'static> Chan<E, Recv<A, P>> {
+impl<'run_marker, TopP, E, P, A: marker::Send + 'static> Chan<'run_marker, TopP, E, Recv<A, P>> {
     /// Receives a value of type `A` from the channel. Returns a tuple
     /// containing the resulting channel and the received value.
     #[must_use]
-    pub fn recv(self) -> (Chan<E, P>, A) {
+    pub fn recv(self) -> (Chan<'run_marker, TopP, E, P>, A) {
         unsafe {
             let v = read_chan(&self);
             (transmute(self), v)
@@ -192,10 +219,10 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Recv<A, P>> {
     }
 }
 
-impl<E, P, Q> Chan<E, Choose<P, Q>> {
+impl<'run_marker, TopP, E, P, Q> Chan<'run_marker, TopP, E, Choose<P, Q>> {
     /// Perform an active choice, selecting protocol `P`.
     #[must_use]
-    pub fn sel1(self) -> Chan<E, P> {
+    pub fn sel1(self) -> Chan<'run_marker, TopP, E, P> {
         unsafe {
             write_chan(&self, true);
             transmute(self)
@@ -204,7 +231,7 @@ impl<E, P, Q> Chan<E, Choose<P, Q>> {
 
     /// Perform an active choice, selecting protocol `Q`.
     #[must_use]
-    pub fn sel2(self) -> Chan<E, Q> {
+    pub fn sel2(self) -> Chan<'run_marker, TopP, E, Q> {
         unsafe {
             write_chan(&self, false);
             transmute(self)
@@ -213,69 +240,69 @@ impl<E, P, Q> Chan<E, Choose<P, Q>> {
 }
 
 /// Convenience function. This is identical to `.sel2()`
-impl<Z, A, B> Chan<Z, Choose<A, B>> {
+impl<'run_marker, TopP, Z, A, B> Chan<'run_marker, TopP, Z, Choose<A, B>> {
     #[must_use]
-    pub fn skip(self) -> Chan<Z, B> {
+    pub fn skip(self) -> Chan<'run_marker, TopP, Z, B> {
         self.sel2()
     }
 }
 
 /// Convenience function. This is identical to `.sel2().sel2()`
-impl<Z, A, B, C> Chan<Z, Choose<A, Choose<B, C>>> {
+impl<'run_marker, TopP, Z, A, B, C> Chan<'run_marker, TopP, Z, Choose<A, Choose<B, C>>> {
     #[must_use]
-    pub fn skip2(self) -> Chan<Z, C> {
+    pub fn skip2(self) -> Chan<'run_marker, TopP, Z, C> {
         self.sel2().sel2()
     }
 }
 
 /// Convenience function. This is identical to `.sel2().sel2().sel2()`
-impl<Z, A, B, C, D> Chan<Z, Choose<A, Choose<B, Choose<C, D>>>> {
+impl<'run_marker, TopP, Z, A, B, C, D> Chan<'run_marker, TopP, Z, Choose<A, Choose<B, Choose<C, D>>>> {
     #[must_use]
-    pub fn skip3(self) -> Chan<Z, D> {
+    pub fn skip3(self) -> Chan<'run_marker, TopP, Z, D> {
         self.sel2().sel2().sel2()
     }
 }
 
 /// Convenience function. This is identical to `.sel2().sel2().sel2().sel2()`
-impl<Z, A, B, C, D, E> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, E>>>>> {
+impl<'run_marker, TopP, Z, A, B, C, D, E> Chan<'run_marker, TopP, Z, Choose<A, Choose<B, Choose<C, Choose<D, E>>>>> {
     #[must_use]
-    pub fn skip4(self) -> Chan<Z, E> {
+    pub fn skip4(self) -> Chan<'run_marker, TopP, Z, E> {
         self.sel2().sel2().sel2().sel2()
     }
 }
 
 /// Convenience function. This is identical to `.sel2().sel2().sel2().sel2().sel2()`
-impl<Z, A, B, C, D, E, F> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D,
+impl<'run_marker, TopP, Z, A, B, C, D, E, F> Chan<'run_marker, TopP, Z, Choose<A, Choose<B, Choose<C, Choose<D,
                           Choose<E, F>>>>>> {
     #[must_use]
-    pub fn skip5(self) -> Chan<Z, F> {
+    pub fn skip5(self) -> Chan<'run_marker, TopP, Z, F> {
         self.sel2().sel2().sel2().sel2().sel2()
     }
 }
 
 /// Convenience function.
-impl<Z, A, B, C, D, E, F, G> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D,
+impl<'run_marker, TopP, Z, A, B, C, D, E, F, G> Chan<'run_marker, TopP, Z, Choose<A, Choose<B, Choose<C, Choose<D,
                              Choose<E, Choose<F, G>>>>>>> {
     #[must_use]
-    pub fn skip6(self) -> Chan<Z, G> {
+    pub fn skip6(self) -> Chan<'run_marker, TopP, Z, G> {
         self.sel2().sel2().sel2().sel2().sel2().sel2()
     }
 }
 
 /// Convenience function.
-impl<Z, A, B, C, D, E, F, G, H> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D,
+impl<'run_marker, TopP, Z, A, B, C, D, E, F, G, H> Chan<'run_marker, TopP, Z, Choose<A, Choose<B, Choose<C, Choose<D,
                                         Choose<E, Choose<F, Choose<G, H>>>>>>>> {
     #[must_use]
-    pub fn skip7(self) -> Chan<Z, H> {
+    pub fn skip7(self) -> Chan<'run_marker, TopP, Z, H> {
         self.sel2().sel2().sel2().sel2().sel2().sel2().sel2()
     }
 }
 
-impl<E, P, Q> Chan<E, Offer<P, Q>> {
+impl<'run_marker, TopP, E, P, Q> Chan<'run_marker, TopP, E, Offer<P, Q>> {
     /// Passive choice. This allows the other end of the channel to select one
     /// of two options for continuing the protocol: either `P` or `Q`.
     #[must_use]
-    pub fn offer(self) -> Branch<Chan<E, P>, Chan<E, Q>> {
+    pub fn offer(self) -> Branch<Chan<'run_marker, TopP, E, P>, Chan<'run_marker, TopP, E, Q>> {
         unsafe {
             let b = read_chan(&self);
             if b {
@@ -287,27 +314,27 @@ impl<E, P, Q> Chan<E, Offer<P, Q>> {
     }
 }
 
-impl<E, P> Chan<E, Rec<P>> {
+impl<'run_marker, TopP, E, P> Chan<'run_marker, TopP, E, Rec<P>> {
     /// Enter a recursive environment, putting the current environment on the
     /// top of the environment stack.
     #[must_use]
-    pub fn enter(self) -> Chan<(P, E), P> {
+    pub fn enter(self) -> Chan<'run_marker, TopP, (P, E), P> {
         unsafe { transmute(self) }
     }
 }
 
-impl<E, P> Chan<(P, E), Var<Z>> {
+impl<'run_marker, TopP, E, P> Chan<'run_marker, TopP, (P, E), Var<Z>> {
     /// Recurse to the environment on the top of the environment stack.
     #[must_use]
-    pub fn zero(self) -> Chan<(P, E), P> {
+    pub fn zero(self) -> Chan<'run_marker, TopP, (P, E), P> {
         unsafe { transmute(self) }
     }
 }
 
-impl<E, P, N> Chan<(P, E), Var<S<N>>> {
+impl<'run_marker, TopP, E, P, N> Chan<'run_marker, TopP, (P, E), Var<S<N>>> {
     /// Pop the top environment from the environment stack.
     #[must_use]
-    pub fn succ(self) -> Chan<E, Var<N>> {
+    pub fn succ(self) -> Chan<'run_marker, TopP, E, Var<N>> {
         unsafe { transmute(self) }
     }
 }
@@ -317,8 +344,8 @@ impl<E, P, N> Chan<(P, E), Var<S<N>>> {
 /// to receive. Removes the receiving channel from the vector and returns both
 /// the channel and the new vector.
 #[must_use]
-pub fn hselect<E, P, A>(mut chans: Vec<Chan<E, Recv<A, P>>>)
-                        -> (Chan<E, Recv<A, P>>, Vec<Chan<E, Recv<A, P>>>)
+pub fn hselect<'run_marker, TopP, E, P, A>(mut chans: Vec<Chan<'run_marker, TopP, E, Recv<A, P>>>)
+                        -> (Chan<'run_marker, TopP, E, Recv<A, P>>, Vec<Chan<'run_marker, TopP, E, Recv<A, P>>>)
 {
     let i = iselect(&chans);
     let c = chans.remove(i);
@@ -327,7 +354,7 @@ pub fn hselect<E, P, A>(mut chans: Vec<Chan<E, Recv<A, P>>>)
 
 /// An alternative version of homogeneous select, returning the index of the Chan
 /// that is ready to receive.
-pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
+pub fn iselect<'run_marker, TopP, E, P, A>(chans: &Vec<Chan<'run_marker, TopP, E, Recv<A, P>>>) -> usize {
     let mut map = HashMap::new();
 
     let id = {
@@ -366,7 +393,7 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
 /// The type parameter T is a return type, ie we store a value of some type T
 /// that is returned in case its associated channels is selected on `wait()`
 pub struct ChanSelect<'c, T> {
-    chans: Vec<(&'c Chan<(), ()>, T)>,
+    chans: Vec<(&'c Chan<'static /* unused placeholder */, i8, (), ()>, T)>,
 }
 
 
@@ -381,15 +408,15 @@ impl<'c, T> ChanSelect<'c, T> {
     ///
     /// Once a channel has been added it cannot be interacted with as long as it
     /// is borrowed here (by virtue of borrow checking and lifetimes).
-    pub fn add_recv_ret<E, P, A: marker::Send>(&mut self,
-                                               chan: &'c Chan<E, Recv<A, P>>,
-                                               ret: T)
+    pub fn add_recv_ret<'run_marker, TopP, E, P, A: marker::Send>(&mut self,
+                                                            chan: &'c Chan<'run_marker, TopP, E, Recv<A, P>>,
+                                                            ret: T)
     {
         self.chans.push((unsafe { transmute(chan) }, ret));
     }
 
-    pub fn add_offer_ret<E, P, Q>(&mut self,
-                                  chan: &'c Chan<E, Offer<P, Q>>,
+    pub fn add_offer_ret<'run_marker, TopP, E, P, Q>(&mut self,
+                                  chan: &'c Chan<'run_marker, TopP, E, Offer<P, Q>>,
                                   ret: T)
     {
         self.chans.push((unsafe { transmute(chan) }, ret));
@@ -434,15 +461,15 @@ impl<'c, T> ChanSelect<'c, T> {
 /// of the selected channel. This is also the implementation used by
 /// the `chan_select!` macro.
 impl<'c> ChanSelect<'c, usize> {
-    pub fn add_recv<E, P, A: marker::Send>(&mut self,
-                                           c: &'c Chan<E, Recv<A, P>>)
+    pub fn add_recv<'run_marker, TopP, E, P, A: marker::Send>(&mut self,
+                                                        c: &'c Chan<'run_marker, TopP, E, Recv<A, P>>)
     {
         let index = self.chans.len();
         self.add_recv_ret(c, index);
     }
 
-    pub fn add_offer<E, P, Q>(&mut self,
-                              c: &'c Chan<E, Offer<P, Q>>)
+    pub fn add_offer<'run_marker, TopP, E, P, Q>(&mut self,
+                                           c: &'c Chan<'run_marker, TopP, E, Offer<P, Q>>)
     {
         let index = self.chans.len();
         self.add_offer_ret(c, index);
@@ -451,7 +478,7 @@ impl<'c> ChanSelect<'c, usize> {
 
 /// Returns two session channels
 #[must_use]
-pub fn session_channel<P: HasDual>() -> (Chan<(), P>, Chan<(), P::Dual>) {
+pub fn session_channel<'run_marker, P: HasDual>() -> (Chan2<'run_marker, (), P>, Chan2<'run_marker, (), P::Dual>) {
     let (tx1, rx1) = channel();
     let (tx2, rx2) = channel();
 
@@ -463,13 +490,15 @@ pub fn session_channel<P: HasDual>() -> (Chan<(), P>, Chan<(), P::Dual>) {
 
 /// Connect two functions using a session typed channel.
 pub fn connect<F1, F2, P>(srv: F1, cli: F2)
-    where F1: Fn(Chan<(), P>) + marker::Send + 'static,
-          F2: Fn(Chan<(), P::Dual>) + marker::Send,
-          P: HasDual + marker::Send + 'static,
-          <P as HasDual>::Dual: HasDual + marker::Send + 'static
+    where F1: Fn(Chan2<'static, (), P>)       -> Complete<'static, P>       + marker::Send + 'static,
+          F2: Fn(Chan2<'static, (), P::Dual>) -> Complete<'static, P::Dual> + marker::Send,
+          P: HasDual                                                                + marker::Send + 'static,
+          <P as HasDual>::Dual: HasDual                                             + marker::Send + 'static
 {
-    let (c1, c2) = session_channel();
+    let (c1a, c2a) = session_channel();
+    let c1 = c1a;
     let t = spawn(move || srv(c1));
+    let c2 = c2a;
     cli(c2);
     t.join().unwrap();
 }
@@ -488,24 +517,24 @@ pub fn connect<F1, F2, P>(srv: F1, cli: F2)
 /// use session_types::*;
 /// use std::thread::spawn;
 ///
-/// fn srv(c: Chan<(), Offer<Recv<u64, Eps>, Offer<Recv<String, Eps>, Eps>>>) {
+/// fn srv<'run_marker>(c: Chan2<'run_marker, (), Offer<Recv<u64, Eps>, Offer<Recv<String, Eps>, Eps>>>) -> Complete<'run_marker, Offer<Recv<u64, Eps>, Offer<Recv<String, Eps>, Eps>>> {
 ///     offer! { c,
 ///         Number => {
 ///             let (c, n) = c.recv();
 ///             assert_eq!(42, n);
-///             c.close();
+///             return c.close();
 ///         },
 ///         String => {
-///             c.recv().0.close();
+///             return c.recv().0.close();
 ///         },
 ///         Quit => {
-///             c.close();
+///             return c.close();
 ///         }
 ///     }
 /// }
 ///
-/// fn cli(c: Chan<(), Choose<Send<u64, Eps>, Choose<Send<String, Eps>, Eps>>>) {
-///     c.sel1().send(42).close();
+/// fn cli<'run_marker>(c: Chan2<'run_marker, (), Choose<Send<u64, Eps>, Choose<Send<String, Eps>, Eps>>>) -> Complete<'run_marker, Choose<Send<u64, Eps>, Choose<Send<String, Eps>, Eps>>> {
+///     return c.sel1().send(42).close();
 /// }
 ///
 /// fn main() {
@@ -545,12 +574,12 @@ macro_rules! offer {
 /// use session_types::*;
 /// use std::thread::spawn;
 ///
-/// fn send_str(c: Chan<(), Send<String, Eps>>) {
-///     c.send("Hello, World!".to_string()).close();
+/// fn send_str<'run_marker>(c: Chan2<'run_marker, (), Send<String, Eps>>) -> Complete<'run_marker, Send<String, Eps>> {
+///     return c.send("Hello, World!".to_string()).close();
 /// }
 ///
-/// fn send_usize(c: Chan<(), Send<usize, Eps>>) {
-///     c.send(42).close();
+/// fn send_usize<'run_marker>(c: Chan2<'run_marker, (), Send<usize, Eps>>) -> Complete<'run_marker, Send<usize, Eps>> {
+///     return c.send(42).close();
 /// }
 ///
 /// fn main() {
@@ -590,14 +619,14 @@ macro_rules! offer {
 /// type Igo = Choose<Send<String, Eps>, Send<u64, Eps>>;
 /// type Ugo = Offer<Recv<String, Eps>, Recv<u64, Eps>>;
 ///
-/// fn srv(chan_one: Chan<(), Ugo>, chan_two: Chan<(), Ugo>) {
+/// fn srv<'run_marker_one, 'run_marker_two>(chan_one: Chan2<'run_marker_one, (), Ugo>, chan_two: Chan2<'run_marker_two, (), Ugo>) -> Complete<'run_marker_one, Ugo> {
 ///     let _ign;
 ///     chan_select! {
 ///         _ign = chan_one.offer() => {
 ///             String => {
 ///                 let (c, s) = chan_one.recv();
 ///                 assert_eq!("Hello, World!".to_string(), s);
-///                 c.close();
+///                 return c.close();
 ///             },
 ///             Number => {
 ///                 unreachable!()
@@ -614,8 +643,8 @@ macro_rules! offer {
 ///     }
 /// }
 ///
-/// fn cli(c: Chan<(), Igo>) {
-///     c.sel1().send("Hello, World!".to_string()).close();
+/// fn cli<'run_marker>(c: Chan<'run_marker, Igo, (), Igo>) -> Complete<'run_marker, Igo> {
+///     return c.sel1().send("Hello, World!".to_string()).close();
 /// }
 ///
 /// fn main() {

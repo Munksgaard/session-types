@@ -3,7 +3,7 @@ use session_types::*;
 
 use std::thread::spawn;
 
-fn client(n: u64, c: Chan<(), Send<u64, Eps>>) {
+fn client<'run>(n: u64, c: Chan2<'run, (), Send<u64, Eps>>) -> Complete<'run, Send<u64, Eps>> {
     c.send(n).close()
 }
 
