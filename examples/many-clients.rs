@@ -9,7 +9,7 @@ use rand::random;
 type Server = Recv<u8, Choose<Send<u8, Eps>, Eps>>;
 type Client = <Server as HasDual>::Dual;
 
-fn server_handler(c: Chan<(), Server>) {
+fn server_handler<'run>(c: Chan2<'run, (), Server>) -> Complete<'run, Server> {
     let (c, n) = c.recv();
     match n.checked_add(42) {
         Some(n) => c.sel1().send(n).close(),
@@ -17,7 +17,7 @@ fn server_handler(c: Chan<(), Server>) {
     }
 }
 
-fn server(rx: Receiver<Chan<(), Server>>) {
+fn server(rx: Receiver<Chan2<'static, (), Server>>) {
     let mut count = 0;
     loop {
         match rx.recv() {
@@ -31,17 +31,19 @@ fn server(rx: Receiver<Chan<(), Server>>) {
     println!("Handled {} connections", count);
 }
 
-fn client_handler(c: Chan<(), Client>) {
+fn client_handler<'run>(c: Chan2<'run, (), Client>) -> Complete<'run, Client> {
     let n = random();
     match c.send(n).offer() {
         Left(c) => {
             let (c, n2) = c.recv();
-            c.close();
+            let proof = c.close();
             println!("{} + 42 = {}", n, n2);
+            return proof;
         },
         Right(c) => {
-            c.close();
+            let proof = c.close();
             println!("{} + 42 is an overflow :(", n);
+            return proof;
         }
     }
 }

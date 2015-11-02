@@ -7,11 +7,11 @@ use session_types::*;
 
 type Proto = Send<u8, Eps>;
 
-fn srv(c: Chan<(), Proto>) {
+fn srv(c: Chan2<'static, (), Proto>) {
     c.send(42).close();
 }
 
-fn cli(c: Chan<(), <Proto as HasDual>::Dual>) {
+fn cli(c: Chan2<'static, (), <Proto as HasDual>::Dual>) {
     c.send(42).close(); //~ ERROR
 }
 

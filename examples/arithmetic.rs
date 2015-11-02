@@ -15,13 +15,12 @@ type Srv =
     Offer<Recv<f64, Choose<Send<f64, Var<Z>>, Var<Z>>>,
     Recv<fn(i64) -> bool, Recv<i64, Send<bool, Var<Z>>>>>>>>;
 
-fn server(c: Chan<(), Rec<Srv>>) {
+fn server<'run, TopP>(c: Chan<'run, TopP, (), Rec<Srv>>) -> Complete<'run, TopP> {
     let mut c = c.enter();
     loop {
         c = offer!{ c,
             CLOSE => {
-                c.close();
-                return
+                return c.close();
             },
             ADD => {
                 let (c, n) = c.recv();
@@ -57,10 +56,10 @@ type AddCli<R> =
     Choose<Eps,
     Choose<Send<i64, Send<i64, Recv<i64, Var<Z>>>>, R>>;
 
-fn add_client<R>(c: Chan<(), Rec<AddCli<R>>>) {
+fn add_client<'run, R>(c: Chan2<'run, (), Rec<AddCli<R>>>) -> Complete<'run, Rec<AddCli<R>>> {
     let (c, n) = c.enter().sel2().sel1().send(42).send(1).recv();
     println!("{}", n);
-    c.zero().sel1().close()
+    return c.zero().sel1().close()
 }
 
 type NegCli<R, S> =
@@ -69,10 +68,10 @@ type NegCli<R, S> =
     Choose<Send<i64, Recv<i64, Var<Z>>>,
     S>>>;
 
-fn neg_client<R, S>(c: Chan<(), Rec<NegCli<R, S>>>) {
+fn neg_client<'run, R, S>(c: Chan2<'run, (), Rec<NegCli<R, S>>>) -> Complete<'run, Rec<NegCli<R, S>>> {
     let (c, n) = c.enter().skip2().sel1().send(42).recv();
     println!("{}", n);
-    c.zero().sel1().close();
+    return c.zero().sel1().close();
 }
 
 type SqrtCli<R, S, T> =
@@ -82,16 +81,16 @@ type SqrtCli<R, S, T> =
     Choose<Send<f64, Offer<Recv<f64, Var<Z>>, Var<Z>>>,
     T>>>>;
 
-fn sqrt_client<R, S, T>(c: Chan<(), Rec<SqrtCli<R, S, T>>>) {
+fn sqrt_client<'run, R, S, T>(c: Chan2<'run, (), Rec<SqrtCli<R, S, T>>>) -> Complete<'run, Rec<SqrtCli<R, S, T>>> {
     match c.enter().skip3().sel1().send(42.0).offer() {
         Left(c) => {
             let (c, n) = c.recv();
             println!("{}", n);
-            c.zero().sel1().close();
+            return c.zero().sel1().close();
         }
         Right(c) => {
             println!("Couldn't take square root!");
-            c.zero().sel1().close();
+            return c.zero().sel1().close();
         }
     }
 }
@@ -105,7 +104,7 @@ type PrimeCli<R, S, T> =
     Choose<T,
     Send<fn(i64) -> bool, Send<i64, Recv<bool, Var<Z>>>>>>>>;
 
-fn fn_client<R, S, T>(c: Chan<(), Rec<PrimeCli<R, S, T>>>) {
+fn fn_client<'run, R, S, T>(c: Chan2<'run, (), Rec<PrimeCli<R, S, T>>>) -> Complete<'run, Rec<PrimeCli<R, S, T>>> {
     fn even(n: i64) -> bool {
         n % 2 == 0
     }
@@ -116,7 +115,7 @@ fn fn_client<R, S, T>(c: Chan<(), Rec<PrimeCli<R, S, T>>>) {
         .send(42)
         .recv();
     println!("{}", b);
-    c.zero().sel1().close();
+    return c.zero().sel1().close();
 }
 
 
@@ -134,18 +133,24 @@ type AskNeg<R, S> =
     S>>>;
 
 
-fn ask_neg<R: std::marker::Send + 'static, S: std::marker::Send + 'static>(c1: Chan<(), Rec<AskNeg<R, S>>>,
-                 c2: Chan<(), Send<Chan<(AskNeg<R, S>, ()), Recv<i64, Var<Z>>>, Eps>>) {
+fn ask_neg<R: std::marker::Send + 'static, S: std::marker::Send + 'static>(c1: ChanS<(), Rec<AskNeg<R, S>>>,
+                 c2: ChanS<(), Send<Chan<'static, Rec<AskNeg<R, S>>, (AskNeg<R, S>, ()), Recv<i64, Var<Z>>>, Eps>>) -> Complete<'static, Send<Chan<'static, Rec<AskNeg<R, S>>, (AskNeg<R, S>, ()), Recv<i64, Var<Z>>>, Eps>>
+{
     let c1 = c1.enter().sel2().sel2().sel1().send(42);
-    c2.send(c1).close();
+    return c2.send(c1).close();
 }
 
-fn get_neg<R: std::marker::Send + 'static, S: std::marker::Send + 'static>(c1: Chan<(), Recv<Chan<(AskNeg<R, S>, ()), Recv<i64, Var<Z>>>, Eps>>) {
-    let (c1, c2) = c1.recv();
-    let (c2, n) = c2.recv();
+fn get_neg<'run, TopP, R: std::marker::Send + 'static, S: std::marker::Send + 'static>(
+   c: Chan<'run,
+           TopP,
+           (),
+           Recv<Chan<'static, Rec<AskNeg<R, S>>, (AskNeg<R, S>, ()), Recv<i64, Var<Z>>>,
+           Eps>>) -> Complete<'run, TopP> {
+    let (c, cget) = c.recv();
+    let (cget, n) = cget.recv();
     println!("{}", n);
-    c2.zero().sel1().close();
-    c1.close();
+    let proof: Complete<'static, Rec<AskNeg<R, S>>> = cget.zero().sel1().close();
+    return c.close();
 }
 
 fn main() {

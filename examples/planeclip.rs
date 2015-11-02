@@ -45,27 +45,26 @@ fn intersect(p1: Point, p2: Point, plane: Plane) -> Option<Point> {
 type SendList<A> = Rec<Choose<Eps, Send<A, Var<Z>>>>;
 type RecvList<A> = Rec<Offer<Eps, Recv<A, Var<Z>>>>;
 
-fn sendlist<A: std::marker::Send+Copy+'static>
-    (c: Chan<(), SendList<A>>, xs: Vec<A>)
+fn sendlist<'run, A: std::marker::Send+Copy+'static>
+    (c: Chan2<'run, (), SendList<A>>, xs: Vec<A>) -> Complete<'run, SendList<A>>
 {
     let mut c = c.enter();
     for x in xs.iter() {
         let c1 = c.sel2().send(*x);
         c = c1.zero();
     }
-    c.sel1().close();
+    return c.sel1().close();
 }
 
-fn recvlist<A: std::marker::Send+'static>
-    (c: Chan<(), RecvList<A>>) -> Vec<A>
+fn recvlist<'run, A: std::marker::Send+'static>
+    (c: Chan2<'run, (), RecvList<A>>) -> (Complete<'run, RecvList<A>>, Vec<A>)
 {
     let mut v = Vec::new();
     let mut c = c.enter();
     loop {
         c = match c.offer() {
             Left(c) => {
-                c.close();
-                break;
+                return (c.close(), v);
             }
             Right(c) => {
                 let (c, x) = c.recv();
@@ -74,13 +73,12 @@ fn recvlist<A: std::marker::Send+'static>
             }
         }
     }
-
-    v
 }
 
-fn clipper(plane: Plane,
-           ic: Chan<(), RecvList<Point>>,
-           oc: Chan<(), SendList<Point>>)
+fn clipper<'runi, 'runo>(plane: Plane,
+           ic: Chan2<'runi, (), RecvList<Point>>,
+           oc: Chan2<'runo, (), SendList<Point>>) -> (Complete<'runi, RecvList<Point>>,
+                                                      Complete<'runo, SendList<Point>>)
 {
     let mut oc = oc.enter();
     let mut ic = ic.enter();
@@ -88,9 +86,7 @@ fn clipper(plane: Plane,
 
     match ic.offer() {
         Left(c) => {
-            c.close();
-            oc.sel1().close();
-            return
+            return (c.close(), oc.sel1().close());
         }
         Right(c) => {
             let (c, ptz) = c.recv();
@@ -109,9 +105,7 @@ fn clipper(plane: Plane,
                 if let Some(pt) = intersect(pt, pt0, plane) {
                     oc = oc.sel2().send(pt).zero();
                 }
-                c.close();
-                oc.sel1().close();
-                break;
+                return (c.close(), oc.sel1().close());
             }
             Right(ic) => {
                 let (ic, pt2) = ic.recv();
@@ -135,7 +129,7 @@ fn clipmany(planes: Vec<Plane>, points: Vec<Point>) -> Vec<Point> {
         spawn(move || clipper(plane, rx, tx2));
         rx = rx2;
     }
-    recvlist(rx)
+    recvlist(rx).1
 }
 
 fn normalize_point(Point(a,b,c): Point) -> Point {

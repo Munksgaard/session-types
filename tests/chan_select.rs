@@ -96,10 +96,10 @@ fn chan_select_add_ret() {
 
 // Utility functions
 
-fn send_str(c: Chan<(), Send<String, Eps>>) {
-    c.send("Hello, World!".to_string()).close();
+fn send_str<'run, TopP>(c: Chan<'run, TopP, (), Send<String, Eps>>) -> Complete<'run, TopP> {
+    return c.send("Hello, World!".to_string()).close();
 }
 
-fn send_usize(c: Chan<(), Send<usize, Eps>>) {
-    c.send(42).close();
+fn send_usize<'run, TopP>(c: Chan<'run, TopP, (), Send<usize, Eps>>) -> Complete<'run, TopP> {
+    return c.send(42).close();
 }
