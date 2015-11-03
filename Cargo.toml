@@ -1,6 +1,6 @@
 [package]
 name = "session_types"
-version = "0.1.1"
+version = "0.2.1"
 authors = [ "Philip Munksgaard <pmunksgaard@gmail.com>"
           , "Thomas Bracht Laumann Jespersen <laumann.thomas@gmail.com>"
           ]
@@ -16,3 +16,6 @@ license = "MIT"
 rand = "*"
 rand_macros = "*"
 compiletest_rs = "*"
+
+[features]
+channel_select = []
