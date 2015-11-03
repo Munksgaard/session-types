@@ -14,7 +14,6 @@ license = "MIT"
 
 [dev-dependencies]
 rand = "*"
-rand_macros = "*"
 compiletest_rs = "*"
 
 [features]
