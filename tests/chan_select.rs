@@ -1,14 +1,14 @@
 #[macro_use] extern crate session_types;
 
-#[cfg(feature = "channel_select")]
+#[cfg(feature = "chan_select")]
 use std::thread::spawn;
-#[cfg(feature = "channel_select")]
+#[cfg(feature = "chan_select")]
 use std::borrow::ToOwned;
-#[cfg(feature = "channel_select")]
+#[cfg(feature = "chan_select")]
 use session_types::*;
 
 // recv and assert a value, then close the channel
-#[cfg(feature = "channel_select")]
+#[cfg(feature = "chan_select")]
 macro_rules! recv_assert_eq_close(
     ($e:expr, $rx:ident.recv())
         =>
@@ -19,7 +19,7 @@ macro_rules! recv_assert_eq_close(
     })
 );
 
-#[cfg(feature = "channel_select")]
+#[cfg(feature = "chan_select")]
 #[test]
 fn chan_select_simple() {
     let (tcs, rcs) = session_channel();
@@ -62,7 +62,7 @@ fn chan_select_simple() {
     recv_assert_eq_close!("Hello, World!".to_owned(), rcs.recv());
 }
 
-#[cfg(feature = "channel_select")]
+#[cfg(feature = "chan_select")]
 #[test]
 fn chan_select_add_ret() {
     enum ChanToRead {
@@ -102,12 +102,12 @@ fn chan_select_add_ret() {
 
 // Utility functions
 
-#[cfg(feature = "channel_select")]
+#[cfg(feature = "chan_select")]
 fn send_str(c: Chan<(), Send<String, Eps>>) {
     c.send("Hello, World!".to_string()).close();
 }
 
-#[cfg(feature = "channel_select")]
+#[cfg(feature = "chan_select")]
 fn send_usize(c: Chan<(), Send<usize, Eps>>) {
     c.send(42).close();
 }

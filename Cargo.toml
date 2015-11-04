@@ -17,4 +17,4 @@ rand = "*"
 compiletest_rs = "*"
 
 [features]
-channel_select = []
+chan_select = []
