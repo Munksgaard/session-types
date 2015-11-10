@@ -32,7 +32,7 @@ fn srv(c: Chan<(), Rec<Srv>>) {
 type Cli = <Srv as HasDual>::Dual;
 fn cli(c: Chan<(), Rec<Cli>>) {
 
-    let mut stdin = std::io::stdin();
+    let stdin = std::io::stdin();
     let mut count = 0usize;
 
     let mut c = c.enter();

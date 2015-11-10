@@ -283,9 +283,9 @@ impl<E, P, Q> Chan<E, Offer<P, Q>> {
         unsafe {
             let b = read_chan(&self);
             if b {
-                Branch::Left(transmute(self))
+                Left(transmute(self))
             } else {
-                Branch::Right(transmute(self))
+                Right(transmute(self))
             }
         }
     }
@@ -531,8 +531,8 @@ macro_rules! offer {
         $id:ident, $branch:ident => $code:expr, $($t:tt)+
     ) => (
         match $id.offer() {
-            Branch::Left($id) => $code,
-            Branch::Right($id) => offer!{ $id, $($t)+ }
+            Left($id) => $code,
+            Right($id) => offer!{ $id, $($t)+ }
         }
     );
     (
