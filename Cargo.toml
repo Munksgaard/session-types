@@ -14,7 +14,10 @@ license = "MIT"
 
 [dev-dependencies]
 rand = "*"
-compiletest_rs = "*"
 
 [features]
-chan_select = []
+default = []
+chan_select = ["compiletest_rs"]
+
+[dependencies]
+compiletest_rs = { version = "*", optional = true }
