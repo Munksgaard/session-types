@@ -5,21 +5,32 @@
 // The implementation borrows heavily from Pucella-Tov (2008). See that paper
 // for more explanation.
 
-#![feature(plugin, custom_derive)]
-#![plugin(rand_macros)]
-
 extern crate session_types;
 extern crate rand;
 
 use session_types::*;
 
+use rand::{Rand, Rng};
+
 use std::thread::spawn;
 
-#[derive(Debug, Copy, Clone, Rand)]
+#[derive(Debug, Copy, Clone)]
 struct Point(f64, f64, f64);
 
-#[derive(Debug, Copy, Clone, Rand)]
+impl Rand for Point {
+    fn rand<R: Rng>(rng: &mut R) -> Self {
+        Point(rng.next_f64(), rng.next_f64(), rng.next_f64())
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
 struct Plane(f64, f64, f64, f64);
+
+impl Rand for Plane {
+    fn rand<R: Rng>(rng: &mut R) -> Self {
+        Plane(rng.next_f64(), rng.next_f64(), rng.next_f64(), rng.next_f64())
+    }
+}
 
 fn above(Point(x, y, z): Point, Plane(a, b, c, d): Plane) -> bool {
     (a * x + b * y + c * z + d) / (a * a + b * b + c * c).sqrt() > 0.0

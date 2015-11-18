@@ -60,14 +60,18 @@
 //! }
 //! ```
 
-#![feature(mpsc_select)]
+#![cfg_attr(feature = "chan_select", feature(mpsc_select))]
 
 use std::marker;
 use std::thread::spawn;
 use std::mem::transmute;
-use std::sync::mpsc::{Sender, Receiver, channel, Select};
-use std::collections::HashMap;
+use std::sync::mpsc::{Sender, Receiver, channel};
 use std::marker::PhantomData;
+
+#[cfg(feature = "chan_select")]
+use std::sync::mpsc::Select;
+#[cfg(feature = "chan_select")]
+use std::collections::HashMap;
 
 pub use Branch::*;
 
@@ -279,9 +283,9 @@ impl<E, P, Q> Chan<E, Offer<P, Q>> {
         unsafe {
             let b = read_chan(&self);
             if b {
-                Branch::Left(transmute(self))
+                Left(transmute(self))
             } else {
-                Branch::Right(transmute(self))
+                Right(transmute(self))
             }
         }
     }
@@ -316,6 +320,7 @@ impl<E, P, N> Chan<(P, E), Var<S<N>>> {
 /// protocol (and in the exact same point of the protocol), wait for one of them
 /// to receive. Removes the receiving channel from the vector and returns both
 /// the channel and the new vector.
+#[cfg(feature = "chan_select")]
 #[must_use]
 pub fn hselect<E, P, A>(mut chans: Vec<Chan<E, Recv<A, P>>>)
                         -> (Chan<E, Recv<A, P>>, Vec<Chan<E, Recv<A, P>>>)
@@ -327,6 +332,7 @@ pub fn hselect<E, P, A>(mut chans: Vec<Chan<E, Recv<A, P>>>)
 
 /// An alternative version of homogeneous select, returning the index of the Chan
 /// that is ready to receive.
+#[cfg(feature = "chan_select")]
 pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
     let mut map = HashMap::new();
 
@@ -365,11 +371,12 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
 ///
 /// The type parameter T is a return type, ie we store a value of some type T
 /// that is returned in case its associated channels is selected on `wait()`
+#[cfg(feature = "chan_select")]
 pub struct ChanSelect<'c, T> {
     chans: Vec<(&'c Chan<(), ()>, T)>,
 }
 
-
+#[cfg(feature = "chan_select")]
 impl<'c, T> ChanSelect<'c, T> {
     pub fn new() -> ChanSelect<'c, T> {
         ChanSelect {
@@ -433,6 +440,7 @@ impl<'c, T> ChanSelect<'c, T> {
 /// Default use of ChanSelect works with usize and returns the index
 /// of the selected channel. This is also the implementation used by
 /// the `chan_select!` macro.
+#[cfg(feature = "chan_select")]
 impl<'c> ChanSelect<'c, usize> {
     pub fn add_recv<E, P, A: marker::Send>(&mut self,
                                            c: &'c Chan<E, Recv<A, P>>)
@@ -523,8 +531,8 @@ macro_rules! offer {
         $id:ident, $branch:ident => $code:expr, $($t:tt)+
     ) => (
         match $id.offer() {
-            Branch::Left($id) => $code,
-            Branch::Right($id) => offer!{ $id, $($t)+ }
+            Left($id) => $code,
+            Right($id) => offer!{ $id, $($t)+ }
         }
     );
     (
@@ -627,8 +635,7 @@ macro_rules! offer {
 ///     srv(ca1, cb1);
 /// }
 /// ```
-
-
+#[cfg(features = "chan_select")]
 #[macro_export]
 macro_rules! chan_select {
     (
