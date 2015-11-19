@@ -165,10 +165,37 @@ pub enum Branch<L, R> {
     Right(R)
 }
 
+impl <E, P> Drop for Chan<E, P> {
+    fn drop(&mut self) {
+        panic!("Session channel prematurely dropped");
+    }
+}
+
 impl<E> Chan<E, Eps> {
     /// Close a channel. Should always be used at the end of your program.
-    pub fn close(self) {
-        // Consume `c`
+    pub fn close(mut self) {
+        // This method cleans up the channel without running the panicky destructor
+        // In essence, it calls the drop glue bypassing the `Drop::drop` method
+        use std::mem;
+
+        // Create some dummy values to place the real things inside
+        // This is safe because nobody will read these
+        // mem::swap uses a similar technique (also paired with `forget()`)
+        let mut sender = unsafe { mem::uninitialized() };
+        let mut receiver = unsafe { mem::uninitialized() };
+
+        // Extract the internal sender/receiver so that we can drop them
+        // We cannot drop directly since moving out of a type
+        // that implements `Drop` is disallowed
+        mem::swap(&mut self.0, &mut sender);
+        mem::swap(&mut self.1, &mut receiver);
+
+        drop(sender);drop(receiver); // drop them
+
+        // Ensure Chan destructors don't run so that we don't panic
+        // This also ensures that the uninitialized values don't get
+        // read at any point
+        mem::forget(self);
     }
 }
 
@@ -569,18 +596,16 @@ macro_rules! offer {
 ///     spawn(move|| send_str(tcs));
 ///     spawn(move|| send_usize(tcu));
 ///
-///     loop {
-///         chan_select! {
-///             (c, s) = rcs.recv() => {
-///                 assert_eq!("Hello, World!".to_string(), s);
-///                 c.close();
-///                 break
-///             },
-///             (c, i) = rcu.recv() => {
-///                 assert_eq!(42, i);
-///                 c.close();
-///                 break
-///             }
+///     chan_select! {
+///         (c, s) = rcs.recv() => {
+///             assert_eq!("Hello, World!".to_string(), s);
+///             c.close();
+///             rcu.recv().0.close();
+///         },
+///         (c, i) = rcu.recv() => {
+///             assert_eq!(42, i);
+///             c.close();
+///             rcs.recv().0.close();
 ///         }
 ///     }
 /// }
@@ -606,17 +631,33 @@ macro_rules! offer {
 ///                 let (c, s) = chan_one.recv();
 ///                 assert_eq!("Hello, World!".to_string(), s);
 ///                 c.close();
+///                 match chan_two.offer() {
+///                     Left(c) => c.recv().0.close(),
+///                     Right(c) => c.recv().0.close(),
+///                 }
 ///             },
 ///             Number => {
-///                 unreachable!()
+///                 chan_one.recv().0.close();
+///                 match chan_two.offer() {
+///                     Left(c) => c.recv().0.close(),
+///                     Right(c) => c.recv().0.close(),
+///                 }
 ///             }
 ///         },
 ///         _ign = chan_two.offer() => {
 ///             String => {
-///                 unreachable!()
+///                 chan_two.recv().0.close();
+///                 match chan_one.offer() {
+///                     Left(c) => c.recv().0.close(),
+///                     Right(c) => c.recv().0.close(),
+///                 }
 ///             },
 ///             Number => {
-///                 unreachable!()
+///                 chan_two.recv().0.close();
+///                 match chan_one.offer() {
+///                     Left(c) => c.recv().0.close(),
+///                     Right(c) => c.recv().0.close(),
+///                 }
 ///             }
 ///         }
 ///     }
@@ -629,6 +670,8 @@ macro_rules! offer {
 /// fn main() {
 ///     let (ca1, ca2) = session_channel();
 ///     let (cb1, cb2) = session_channel();
+///
+///     cb2.sel2().send(42).close();
 ///
 ///     spawn(move|| cli(ca2));
 ///
