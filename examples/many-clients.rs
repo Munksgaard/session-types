@@ -6,7 +6,7 @@ use std::sync::mpsc::{channel, Receiver};
 use std::thread::spawn;
 use rand::random;
 
-type Server = Recv<u8, Choose<Send<u8, Eps>, Eps>>;
+type Server = Recv<u8, Choose<(Send<u8, Eps>, Eps)>>;
 type Client = <Server as HasDual>::Dual;
 
 fn server_handler(c: Chan<(), Server>) {
@@ -34,12 +34,12 @@ fn server(rx: Receiver<Chan<(), Server>>) {
 fn client_handler(c: Chan<(), Client>) {
     let n = random();
     match c.send(n).offer() {
-        Left(c) => {
+        B1(c) => {
             let (c, n2) = c.recv();
             c.close();
             println!("{} + 42 = {}", n, n2);
         },
-        Right(c) => {
+        B2(c) => {
             c.close();
             println!("{} + 42 is an overflow :(", n);
         }

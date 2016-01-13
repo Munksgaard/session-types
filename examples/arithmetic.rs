@@ -9,30 +9,30 @@ use std::thread::spawn;
 
 // Offers: Add, Negate, Sqrt, Eval
 type Srv =
-    Offer<Eps,
-    Offer<Recv<i64, Recv<i64, Send<i64, Var<Z>>>>,
-    Offer<Recv<i64, Send<i64, Var<Z>>>,
-    Offer<Recv<f64, Choose<Send<f64, Var<Z>>, Var<Z>>>,
-    Recv<fn(i64) -> bool, Recv<i64, Send<bool, Var<Z>>>>>>>>;
+    Offer<(Eps,
+           Recv<i64, Recv<i64, Send<i64, Var<Z>>>>,
+           Recv<i64, Send<i64, Var<Z>>>,
+           Recv<f64, Choose<(Send<f64, Var<Z>>, Var<Z>)>>,
+           Recv<fn(i64) -> bool, Recv<i64, Send<bool, Var<Z>>>>)>;
 
 fn server(c: Chan<(), Rec<Srv>>) {
     let mut c = c.enter();
     loop {
-        c = offer!{ c,
-            CLOSE => {
+        c = match c.offer() {
+            Branch5::B1(c) => {
                 c.close();
                 return
             },
-            ADD => {
+            Branch5::B2(c) => {
                 let (c, n) = c.recv();
                 let (c, m) = c.recv();
                 c.send(n + m).zero()
             },
-            NEGATE => {
+            Branch5::B3(c) => {
                 let (c, n) = c.recv();
                 c.send(-n).zero()
             },
-            SQRT => {
+            Branch5::B4(c) => {
                 let (c, x) = c.recv();
                 if x >= 0.0 {
                     c.sel1().send(x.sqrt()).zero()
@@ -40,7 +40,7 @@ fn server(c: Chan<(), Rec<Srv>>) {
                     c.sel2().zero()
                 }
             },
-            EVAL => {
+            Branch5::B5(c) => {
                 let (c, f) = c.recv();
                 let (c, n) = c.recv();
                 c.send(f(n)).zero()
@@ -53,43 +53,44 @@ fn server(c: Chan<(), Rec<Srv>>) {
 // uses of session types, but they do showcase subtyping, recursion and how to
 // work the types in general.
 
-type AddCli<R> =
-    Choose<Eps,
-    Choose<Send<i64, Send<i64, Recv<i64, Var<Z>>>>, R>>;
+type AddCli<R, S, T> =
+    Choose<(Eps,
+            Send<i64, Send<i64, Recv<i64, Var<Z>>>>,
+            R, S, T)>;
 
-fn add_client<R>(c: Chan<(), Rec<AddCli<R>>>) {
-    let (c, n) = c.enter().sel2().sel1().send(42).send(1).recv();
+fn add_client<R, S, T>(c: Chan<(), Rec<AddCli<R, S, T>>>) {
+    let (c, n) = c.enter().sel2().send(42).send(1).recv();
     println!("{}", n);
     c.zero().sel1().close()
 }
 
-type NegCli<R, S> =
-    Choose<Eps,
-    Choose<R,
-    Choose<Send<i64, Recv<i64, Var<Z>>>,
-    S>>>;
+type NegCli<R, S, T> =
+    Choose<(Eps,
+            R,
+            Send<i64, Recv<i64, Var<Z>>>,
+            S, T)>;
 
-fn neg_client<R, S>(c: Chan<(), Rec<NegCli<R, S>>>) {
-    let (c, n) = c.enter().skip2().sel1().send(42).recv();
+fn neg_client<R, S, T>(c: Chan<(), Rec<NegCli<R, S, T>>>) {
+    let (c, n) = c.enter().sel3().send(42).recv();
     println!("{}", n);
     c.zero().sel1().close();
 }
 
 type SqrtCli<R, S, T> =
-    Choose<Eps,
-    Choose<R,
-    Choose<S,
-    Choose<Send<f64, Offer<Recv<f64, Var<Z>>, Var<Z>>>,
-    T>>>>;
+    Choose<(Eps,
+            R,
+            S,
+            Send<f64, Offer<(Recv<f64, Var<Z>>, Var<Z>)>>,
+            T)>;
 
 fn sqrt_client<R, S, T>(c: Chan<(), Rec<SqrtCli<R, S, T>>>) {
-    match c.enter().skip3().sel1().send(42.0).offer() {
-        Left(c) => {
+    match c.enter().sel4().send(42.0).offer() {
+        B1(c) => {
             let (c, n) = c.recv();
             println!("{}", n);
             c.zero().sel1().close();
         }
-        Right(c) => {
+        B2(c) => {
             println!("Couldn't take square root!");
             c.zero().sel1().close();
         }
@@ -99,11 +100,11 @@ fn sqrt_client<R, S, T>(c: Chan<(), Rec<SqrtCli<R, S, T>>>) {
 // `fn_client` sends a function over the channel
 
 type PrimeCli<R, S, T> =
-    Choose<Eps,
-    Choose<R,
-    Choose<S,
-    Choose<T,
-    Send<fn(i64) -> bool, Send<i64, Recv<bool, Var<Z>>>>>>>>;
+    Choose<(Eps,
+            R,
+            S,
+            T,
+            Send<fn(i64) -> bool, Send<i64, Recv<bool, Var<Z>>>>)>;
 
 fn fn_client<R, S, T>(c: Chan<(), Rec<PrimeCli<R, S, T>>>) {
     fn even(n: i64) -> bool {
@@ -111,14 +112,13 @@ fn fn_client<R, S, T>(c: Chan<(), Rec<PrimeCli<R, S, T>>>) {
     }
 
     let (c, b) = c.enter()
-        .skip4()
+        .sel5()
         .send(even)
         .send(42)
         .recv();
     println!("{}", b);
     c.zero().sel1().close();
 }
-
 
 // `ask_neg` and `get_neg` use delegation, that is, sending a channel over
 // another channel.
@@ -127,20 +127,22 @@ fn fn_client<R, S, T>(c: Chan<(), Rec<PrimeCli<R, S, T>>>) {
 // sends the whole channel to `get_neg`. `get_neg` then receives the negated
 // integer and prints it.
 
-type AskNeg<R, S> =
-    Choose<Eps,
-    Choose<R,
-    Choose<Send<i64, Recv<i64, Var<Z>>>,
-    S>>>;
+type AskNeg<R, S, T> =
+    Choose<(Eps,
+            R,
+            Send<i64, Recv<i64, Var<Z>>>,
+            S, T)>;
 
 
-fn ask_neg<R: std::marker::Send + 'static, S: std::marker::Send + 'static>(c1: Chan<(), Rec<AskNeg<R, S>>>,
-                 c2: Chan<(), Send<Chan<(AskNeg<R, S>, ()), Recv<i64, Var<Z>>>, Eps>>) {
-    let c1 = c1.enter().sel2().sel2().sel1().send(42);
+fn ask_neg<R: std::marker::Send + 'static, S: std::marker::Send + 'static, T: std::marker::Send + 'static>
+    (c1: Chan<(), Rec<AskNeg<R, S, T>>>,
+     c2: Chan<(), Send<Chan<(AskNeg<R, S, T>, ()), Recv<i64, Var<Z>>>, Eps>>) {
+    let c1 = c1.enter().sel3().send(42);
     c2.send(c1).close();
 }
 
-fn get_neg<R: std::marker::Send + 'static, S: std::marker::Send + 'static>(c1: Chan<(), Recv<Chan<(AskNeg<R, S>, ()), Recv<i64, Var<Z>>>, Eps>>) {
+fn get_neg<R: std::marker::Send + 'static, S: std::marker::Send + 'static, T: std::marker::Send + 'static>
+    (c1: Chan<(), Recv<Chan<(AskNeg<R, S, T>, ()), Recv<i64, Var<Z>>>, Eps>>) {
     let (c1, c2) = c1.recv();
     let (c2, n) = c2.recv();
     println!("{}", n);
