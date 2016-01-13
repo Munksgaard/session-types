@@ -18,21 +18,22 @@ type Srv =
 fn server(c: Chan<(), Rec<Srv>>) {
     let mut c = c.enter();
     loop {
+        use session_types::Branch5::*;
         c = match c.offer() {
-            Branch5::B1(c) => {
+            B1(c) => {
                 c.close();
                 return
             },
-            Branch5::B2(c) => {
+            B2(c) => {
                 let (c, n) = c.recv();
                 let (c, m) = c.recv();
                 c.send(n + m).zero()
             },
-            Branch5::B3(c) => {
+            B3(c) => {
                 let (c, n) = c.recv();
                 c.send(-n).zero()
             },
-            Branch5::B4(c) => {
+            B4(c) => {
                 let (c, x) = c.recv();
                 if x >= 0.0 {
                     c.sel1().send(x.sqrt()).zero()
@@ -40,7 +41,7 @@ fn server(c: Chan<(), Rec<Srv>>) {
                     c.sel2().zero()
                 }
             },
-            Branch5::B5(c) => {
+            B5(c) => {
                 let (c, f) = c.recv();
                 let (c, n) = c.recv();
                 c.send(f(n)).zero()
