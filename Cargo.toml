@@ -1,6 +1,6 @@
 [package]
 name = "session_types"
-version = "0.1.0"
+version = "0.2.0"
 authors = [ "Philip Munksgaard <pmunksgaard@gmail.com>"
           , "Thomas Bracht Laumann Jespersen <laumann.thomas@gmail.com>"
           ]
@@ -10,9 +10,14 @@ repository = "https://github.com/Munksgaard/session-types"
 readme = "README.md"
 keywords = ["session", "types", "channels", "concurrency", "communication"]
 
-license = "GPL-2.0"
+license = "MIT"
 
 [dev-dependencies]
 rand = "*"
-rand_macros = "*"
-compiletest_rs = "*"
+
+[features]
+default = []
+chan_select = ["compiletest_rs"]
+
+[dependencies]
+compiletest_rs = { version = "*", optional = true }

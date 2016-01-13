@@ -1,7 +1,22 @@
 language: rust
 
 rust:
-    - nightly
+  - stable
+  - beta
+  - nightly
+
+before_script:
+  - |
+    pip install 'travis-cargo<0.2' --user &&
+    export PATH=$HOME/.local.bin:$PATH
+script:
+  - |
+    travis-cargo build &&
+    travis-cargo test
+
+env:
+  global:
+    - TRAVIS_CARGO_NIGHTLY_FEATURE=chan_select
 
 notifications:
   email:

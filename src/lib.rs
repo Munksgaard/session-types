@@ -60,14 +60,18 @@
 //! }
 //! ```
 
-#![feature(mpsc_select)]
+#![cfg_attr(feature = "chan_select", feature(mpsc_select))]
 
 use std::marker;
 use std::thread::spawn;
 use std::mem::transmute;
-use std::sync::mpsc::{Sender, Receiver, channel, Select};
-use std::collections::HashMap;
+use std::sync::mpsc::{Sender, Receiver, channel};
 use std::marker::PhantomData;
+
+#[cfg(feature = "chan_select")]
+use std::sync::mpsc::Select;
+#[cfg(feature = "chan_select")]
+use std::collections::HashMap;
 
 pub use Branch2::*;
 
@@ -211,10 +215,37 @@ pub enum Branch5<B1, B2, B3, B4, B5> {
     B5(B5),
 }
 
+impl <E, P> Drop for Chan<E, P> {
+    fn drop(&mut self) {
+        panic!("Session channel prematurely dropped");
+    }
+}
+
 impl<E> Chan<E, Eps> {
     /// Close a channel. Should always be used at the end of your program.
-    pub fn close(self) {
-        // Consume `c`
+    pub fn close(mut self) {
+        // This method cleans up the channel without running the panicky destructor
+        // In essence, it calls the drop glue bypassing the `Drop::drop` method
+        use std::mem;
+
+        // Create some dummy values to place the real things inside
+        // This is safe because nobody will read these
+        // mem::swap uses a similar technique (also paired with `forget()`)
+        let mut sender = unsafe { mem::uninitialized() };
+        let mut receiver = unsafe { mem::uninitialized() };
+
+        // Extract the internal sender/receiver so that we can drop them
+        // We cannot drop directly since moving out of a type
+        // that implements `Drop` is disallowed
+        mem::swap(&mut self.0, &mut sender);
+        mem::swap(&mut self.1, &mut receiver);
+
+        drop(sender);drop(receiver); // drop them
+
+        // Ensure Chan destructors don't run so that we don't panic
+        // This also ensures that the uninitialized values don't get
+        // read at any point
+        mem::forget(self);
     }
 }
 
@@ -485,6 +516,7 @@ impl<E, P, N> Chan<(P, E), Var<S<N>>> {
 /// protocol (and in the exact same point of the protocol), wait for one of them
 /// to receive. Removes the receiving channel from the vector and returns both
 /// the channel and the new vector.
+#[cfg(feature = "chan_select")]
 #[must_use]
 pub fn hselect<E, P, A>(mut chans: Vec<Chan<E, Recv<A, P>>>)
                         -> (Chan<E, Recv<A, P>>, Vec<Chan<E, Recv<A, P>>>)
@@ -496,6 +528,7 @@ pub fn hselect<E, P, A>(mut chans: Vec<Chan<E, Recv<A, P>>>)
 
 /// An alternative version of homogeneous select, returning the index of the Chan
 /// that is ready to receive.
+#[cfg(feature = "chan_select")]
 pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
     let mut map = HashMap::new();
 
@@ -534,11 +567,12 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
 ///
 /// The type parameter T is a return type, ie we store a value of some type T
 /// that is returned in case its associated channels is selected on `wait()`
+#[cfg(feature = "chan_select")]
 pub struct ChanSelect<'c, T> {
     chans: Vec<(&'c Chan<(), ()>, T)>,
 }
 
-
+#[cfg(feature = "chan_select")]
 impl<'c, T> ChanSelect<'c, T> {
     pub fn new() -> ChanSelect<'c, T> {
         ChanSelect {
@@ -602,6 +636,7 @@ impl<'c, T> ChanSelect<'c, T> {
 /// Default use of ChanSelect works with usize and returns the index
 /// of the selected channel. This is also the implementation used by
 /// the `chan_select!` macro.
+#[cfg(feature = "chan_select")]
 impl<'c> ChanSelect<'c, usize> {
     pub fn add_recv<E, P, A: marker::Send>(&mut self,
                                            c: &'c Chan<E, Recv<A, P>>)
@@ -686,22 +721,6 @@ pub fn connect<F1, F2, P>(srv: F1, cli: F2)
 ///
 /// The identifiers on the left-hand side of the arrows have no semantic
 /// meaning, they only provide a meaningful name for the reader.
-// #[macro_export]
-// macro_rules! offer {
-//     (
-//         $id:ident, $branch:ident => $code:expr, $($t:tt)+
-//     ) => (
-//         match $id.offer() {
-//             Branch2::B1($id) => $code,
-//             Branch2::B2($id) => offer!{ $id, $($t)+ }
-//         }
-//     );
-//     (
-//         $id:ident, $branch:ident => $code:expr
-//     ) => (
-//         $code
-//     )
-// }
 
 /// this macro plays the same role as the `select!` macro does for `Receiver`s.
 ///
@@ -730,23 +749,21 @@ pub fn connect<F1, F2, P>(srv: F1, cli: F2)
 ///     spawn(move|| send_str(tcs));
 ///     spawn(move|| send_usize(tcu));
 ///
-///     loop {
-///         chan_select! {
-///             (c, s) = rcs.recv() => {
-///                 assert_eq!("Hello, World!".to_string(), s);
-///                 c.close();
-///                 break
-///             },
-///             (c, i) = rcu.recv() => {
-///                 assert_eq!(42, i);
-///                 c.close();
-///                 break
-///             }
+///     chan_select! {
+///         (c, s) = rcs.recv() => {
+///             assert_eq!("Hello, World!".to_string(), s);
+///             c.close();
+///             rcu.recv().0.close();
+///         },
+///         (c, i) = rcu.recv() => {
+///             assert_eq!(42, i);
+///             c.close();
+///             rcs.recv().0.close();
 ///         }
 ///     }
 /// }
 /// ```
-
+#[cfg(features = "chan_select")]
 #[macro_export]
 macro_rules! chan_select {
     (
