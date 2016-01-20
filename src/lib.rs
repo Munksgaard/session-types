@@ -62,8 +62,8 @@
 
 #![cfg_attr(feature = "chan_select", feature(mpsc_select))]
 
-#![feature(plugin)]
-#![plugin(branch_impls)]
+#![cfg_attr(feature = "multibranch", feature(plugin))]
+#![cfg_attr(feature = "multibranch", plugin(branch_impls))]
 
 use std::marker;
 use std::thread::spawn;
@@ -237,7 +237,62 @@ impl<E, P, N> Chan<(P, E), Var<S<N>>> {
     }
 }
 
+#[cfg(feature = "multibranch")]
 branch_impls!(30);
+
+#[cfg(not(feature = "multibranch"))]
+pub enum Branch2<B1, B2> {
+    B1(B1),
+    B2(B2)
+}
+
+#[cfg(not(feature = "multibranch"))]
+impl<E, B1, B2> Chan<E, Choose<(B1, B2)>> {
+    /// Perform an active choice, selecting protocol `P`.
+    #[must_use]
+    pub fn sel1(self) -> Chan<E, B1> {
+        unsafe {
+            write_chan(&self, true);
+            transmute(self)
+        }
+    }
+
+    /// Perform an active choice, selecting protocol `Q`.
+    #[must_use]
+    pub fn sel2(self) -> Chan<E, B2> {
+        unsafe {
+            write_chan(&self, false);
+            transmute(self)
+        }
+    }
+}
+
+#[cfg(not(feature = "multibranch"))]
+impl<E, B1, B2> Chan<E, Offer<(B1, B2)>> {
+    /// Passive choice. This allows the other end of the channel to select one
+    /// of two options for continuing the protocol: either `P` or `Q`.
+    #[must_use]
+    pub fn offer(self) -> Branch2<Chan<E, B1>, Chan<E, B2>> {
+        unsafe {
+            let b = read_chan(&self);
+            if b {
+                B1(transmute(self))
+            } else {
+                B2(transmute(self))
+            }
+        }
+    }
+}
+
+#[cfg(not(feature = "multibranch"))]
+unsafe impl <P: HasDual, Q: HasDual> HasDual for Choose<(P, Q)> {
+    type Dual = Offer<(P::Dual, Q::Dual)>;
+}
+
+#[cfg(not(feature = "multibranch"))]
+unsafe impl <P: HasDual, Q: HasDual> HasDual for Offer<(P, Q)> {
+    type Dual = Choose<(P::Dual, Q::Dual)>;
+}
 
 /// Homogeneous select. We have a vector of channels, all obeying the same
 /// protocol (and in the exact same point of the protocol), wait for one of them
