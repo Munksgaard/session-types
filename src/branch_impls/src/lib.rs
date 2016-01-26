@@ -121,7 +121,7 @@ fn branch_impls(cx: &mut ExtCtxt, sp: Span, tts: &[TokenTree]) -> Box<MacResult 
             }
         },
         Err(mut e) => {
-            e.emit();
+            //e.emit();
             return DummyResult::any(sp);
         }
     } as u8;
