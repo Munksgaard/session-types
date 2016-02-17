@@ -20,7 +20,8 @@ default = []
 chan_select = ["compiletest_rs"]
 
 [dependencies.ipc-channel]
-path = "/home/tj/rust/ipc-channel"
+#path = "/home/tj/rust/ipc-channel"
+git = "http://github.com/servo/ipc-channel"
 
 [dependencies]
 compiletest_rs = { version = "*", optional = true }
