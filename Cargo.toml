@@ -13,11 +13,15 @@ keywords = ["session", "types", "channels", "concurrency", "communication"]
 license = "MIT"
 
 [dev-dependencies]
-rand = "*"
+rand = "0.3.14"
 
 [features]
 default = []
 chan_select = ["compiletest_rs"]
 
+[dependencies.ipc-channel]
+path = "/home/tj/rust/ipc-channel"
+
 [dependencies]
 compiletest_rs = { version = "*", optional = true }
+serde = "0.6.6"

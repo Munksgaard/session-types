@@ -62,6 +62,9 @@
 
 #![cfg_attr(feature = "chan_select", feature(mpsc_select))]
 
+extern crate ipc_channel;
+extern crate serde;
+
 use std::marker;
 use std::thread::spawn;
 use std::mem::transmute;
@@ -73,25 +76,31 @@ use std::sync::mpsc::Select;
 #[cfg(feature = "chan_select")]
 use std::collections::HashMap;
 
+use ipc_channel::ipc;
+use ipc_channel::ipc::{IpcSender, IpcReceiver};
+use serde::ser::Serialize;
+use serde::de::Deserialize;
+
 pub use Branch::*;
 
 /// A session typed channel. `P` is the protocol and `E` is the environment,
-/// containing potential recursion targets
+/// containing potential recursion targets.
+/// This is the IPC version, using the ipc-channel library.
 #[must_use]
-pub struct Chan<E, P> (Sender<Box<u8>>, Receiver<Box<u8>>, PhantomData<(E, P)>);
+pub struct Chan<E, P> (IpcSender<u8>, IpcReceiver<u8>, PhantomData<(E, P)>);
 
-unsafe fn write_chan<A: marker::Send + 'static, E, P>
+unsafe fn write_chan<A: marker::Send + 'static + Serialize, E, P>
     (&Chan(ref tx, _, _): &Chan<E, P>, x: A)
 {
-    let tx: &Sender<Box<A>> = transmute(tx);
-    tx.send(Box::new(x)).unwrap();
+    let tx: &IpcSender<A> = transmute(tx);
+    tx.send(x).unwrap();
 }
 
-unsafe fn read_chan<A: marker::Send + 'static, E, P>
+unsafe fn read_chan<A: marker::Send + 'static + Serialize + Deserialize, E, P>
     (&Chan(_, ref rx, _): &Chan<E, P>) -> A
 {
-    let rx: &Receiver<Box<A>> = transmute(rx);
-    *rx.recv().unwrap()
+    let rx: &IpcReceiver<A> = transmute(rx);
+    rx.recv().unwrap()
 }
 
 /// Peano numbers: Zero
@@ -199,7 +208,7 @@ impl<E> Chan<E, Eps> {
     }
 }
 
-impl<E, P, A: marker::Send + 'static> Chan<E, Send<A, P>> {
+impl<E, P, A: marker::Send + 'static + Serialize> Chan<E, Send<A, P>> {
     /// Send a value of type `A` over the channel. Returns a channel with
     /// protocol `P`
     #[must_use]
@@ -211,7 +220,7 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Send<A, P>> {
     }
 }
 
-impl<E, P, A: marker::Send + 'static> Chan<E, Recv<A, P>> {
+impl<E, P, A: marker::Send + 'static + Serialize + Deserialize> Chan<E, Recv<A, P>> {
     /// Receives a value of type `A` from the channel. Returns a tuple
     /// containing the resulting channel and the received value.
     #[must_use]
@@ -487,14 +496,24 @@ impl<'c> ChanSelect<'c, usize> {
 /// Returns two session channels
 #[must_use]
 pub fn session_channel<P: HasDual>() -> (Chan<(), P>, Chan<(), P::Dual>) {
-    let (tx1, rx1) = channel();
-    let (tx2, rx2) = channel();
+    let (tx1, rx1) = ipc::channel().unwrap();
+    let (tx2, rx2) = ipc::channel().unwrap();
 
     let c1 = Chan(tx1, rx2, PhantomData);
     let c2 = Chan(tx2, rx1, PhantomData);
 
     (c1, c2)
 }
+
+// pub fn ipc_session_channel<P: HasDual>() -> (Chan<(), P>, Chan<(), P::Dual>) {
+//     let (tx1, rx1) = ipc::channel().unwrap();
+//     let (tx2, rx2) = ipc::channel().unwrap();
+
+//     let c1 = Chan(tx1, rx2, PhantomData);
+//     let c2 = Chan(tx2, rx1, PhantomData);
+
+//     (c1, c2)
+// }
 
 /// Connect two functions using a session typed channel.
 pub fn connect<F1, F2, P>(srv: F1, cli: F2)
