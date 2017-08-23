@@ -94,6 +94,21 @@ unsafe fn read_chan<A: marker::Send + 'static, E, P>
     *rx.recv().unwrap()
 }
 
+unsafe fn try_read_chan<A: marker::Send + 'static, E, P>
+    (&Chan(_, ref rx, _): &Chan<E, P>) -> Option <A>
+{
+    use std::sync::mpsc::TryRecvError;
+    let rx: &Receiver<Box<A>> = transmute(rx);
+    match rx.try_recv() {
+        Ok(a) => Some(*a),
+        Err(e) => match e {
+            TryRecvError::Empty => None,
+            TryRecvError::Disconnected =>
+                panic!("ERROR: try_read_chan: sender hung up")
+        }
+    }
+}
+
 /// Peano numbers: Zero
 #[allow(missing_copy_implementations)]
 pub struct Z;
@@ -221,6 +236,18 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Recv<A, P>> {
             (transmute(self), v)
         }
     }
+
+    /// Non-blocking receive.
+    #[must_use]
+    pub fn try_recv(self) -> Result <(Chan<E, P>, A), Self> {
+        unsafe {
+            if let Some (v) = try_read_chan(&self) {
+                Ok((transmute(self), v))
+            } else {
+                Err(self)
+            }
+        }
+    }
 }
 
 impl<E, P, Q> Chan<E, Choose<P, Q>> {
@@ -313,6 +340,22 @@ impl<E, P, Q> Chan<E, Offer<P, Q>> {
                 Left(transmute(self))
             } else {
                 Right(transmute(self))
+            }
+        }
+    }
+
+    /// Poll for choice.
+    #[must_use]
+    pub fn try_offer(self) -> Result <Branch<Chan<E, P>, Chan<E, Q>>, Self> {
+        unsafe {
+            if let Some(b) = try_read_chan(&self) {
+                if b {
+                    Ok(Left(transmute(self)))
+                } else {
+                    Ok(Right(transmute(self)))
+                }
+            } else {
+                Err(self)
             }
         }
     }
@@ -560,6 +603,25 @@ macro_rules! offer {
         match $id.offer() {
             Left($id) => $code,
             Right($id) => offer!{ $id, $($t)+ }
+        }
+    );
+    (
+        $id:ident, $branch:ident => $code:expr
+    ) => (
+        $code
+    )
+}
+
+/// Returns the channel unchanged on `TryRecvError::Empty`.
+#[macro_export]
+macro_rules! try_offer {
+    (
+        $id:ident, $branch:ident => $code:expr, $($t:tt)+
+    ) => (
+        match $id.try_offer() {
+            Ok(Left($id)) => $code,
+            Ok(Right($id)) => try_offer!{ $id, $($t)+ },
+            Err($id) => Err($id)
         }
     );
     (
