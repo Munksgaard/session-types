@@ -8,19 +8,19 @@ use session_types::*;
 
 use std::thread::spawn;
 
-type Srv = Offer<Eps, Recv<String, Var<Z>>>;
+type Srv = Offer<(Eps, Recv<String, Var<Z>>)>;
 fn srv(c: Chan<(), Rec<Srv>>) {
 
     let mut c = c.enter();
 
     loop {
-        c = offer!{ c,
-            CLOSE => {
+        c = match c.offer() {
+            Branch2::B1(c) => {
                 println!("Closing server.");
                 c.close();
                 break
             },
-            RECV => {
+            Branch2::B2(c) => {
                 let (c, s) = c.recv();
                 println!("Received: {}", s);
                 c.zero()

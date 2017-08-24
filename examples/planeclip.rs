@@ -53,8 +53,8 @@ fn intersect(p1: Point, p2: Point, plane: Plane) -> Option<Point> {
     }
 }
 
-type SendList<A> = Rec<Choose<Eps, Send<A, Var<Z>>>>;
-type RecvList<A> = Rec<Offer<Eps, Recv<A, Var<Z>>>>;
+type SendList<A> = Rec<Choose<(Eps, Send<A, Var<Z>>)>>;
+type RecvList<A> = Rec<Offer<(Eps, Recv<A, Var<Z>>)>>;
 
 fn sendlist<A: std::marker::Send+Copy+'static>
     (c: Chan<(), SendList<A>>, xs: Vec<A>)
@@ -74,11 +74,11 @@ fn recvlist<A: std::marker::Send+'static>
     let mut c = c.enter();
     loop {
         c = match c.offer() {
-            Left(c) => {
+            B1(c) => {
                 c.close();
                 break;
             }
-            Right(c) => {
+            B2(c) => {
                 let (c, x) = c.recv();
                 v.push(x);
                 c.zero()
@@ -98,12 +98,12 @@ fn clipper(plane: Plane,
     let (pt0, mut pt);
 
     match ic.offer() {
-        Left(c) => {
+        B1(c) => {
             c.close();
             oc.sel1().close();
             return
         }
-        Right(c) => {
+        B2(c) => {
             let (c, ptz) = c.recv();
             ic = c.zero();
             pt0 = ptz;
@@ -116,7 +116,7 @@ fn clipper(plane: Plane,
             oc = oc.sel2().send(pt).zero();
         }
         ic = match ic.offer() {
-            Left(c) => {
+            B1(c) => {
                 if let Some(pt) = intersect(pt, pt0, plane) {
                     oc = oc.sel2().send(pt).zero();
                 }
@@ -124,7 +124,7 @@ fn clipper(plane: Plane,
                 oc.sel1().close();
                 break;
             }
-            Right(ic) => {
+            B2(ic) => {
                 let (ic, pt2) = ic.recv();
                 if let Some(pt) = intersect(pt, pt2, plane) {
                     oc = oc.sel2().send(pt).zero();

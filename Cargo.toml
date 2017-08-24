@@ -21,3 +21,6 @@ chan_select = ["compiletest_rs"]
 
 [dependencies]
 compiletest_rs = { version = "*", optional = true }
+
+[dependencies.branch_impls]
+path = "src/branch_impls"
