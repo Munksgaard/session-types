@@ -1,12 +1,11 @@
 extern crate session_types;
 
 use std::thread::spawn;
-use std::sync::mpsc::channel;
 
 use session_types::*;
 
 fn srv(c: Chan<(), Recv<u8, Eps>>) {
-    let (c, x) = c.recv();
+    let (c, _) = c.recv();
     c.close();
 }
 
