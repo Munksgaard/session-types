@@ -1,7 +1,6 @@
 extern crate session_types;
 
 use std::thread::spawn;
-use std::sync::mpsc::channel;
 
 use session_types::*;
 
