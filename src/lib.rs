@@ -537,7 +537,7 @@ where
     F1: Fn(Chan<(), P>) + marker::Send + 'static,
     F2: Fn(Chan<(), P::Dual>) + marker::Send,
     P: HasDual + marker::Send + 'static,
-    <P as HasDual>::Dual: HasDual + marker::Send + 'static,
+    P::Dual: HasDual + marker::Send + 'static
 {
     let (c1, c2) = session_channel();
     let t = spawn(move || srv(c1));
