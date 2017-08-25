@@ -1,4 +1,5 @@
-#[macro_use] extern crate session_types;
+#[macro_use]
+extern crate session_types;
 
 #[cfg(feature = "chan_select")]
 use std::thread::spawn;
@@ -35,8 +36,8 @@ fn chan_select_simple() {
         let mut sel = ChanSelect::new();
         sel.add_recv(&rcs); // Assigned 0
         sel.add_recv(&rcu); // Assigned 1
-        sel.wait()     // Destroys the ChanSelect, releases references to
-            // rcs and rcu
+        sel.wait() // Destroys the ChanSelect, releases references to
+        // rcs and rcu
     };
 
     assert_eq!(0, index);
@@ -67,24 +68,24 @@ fn chan_select_simple() {
 fn chan_select_add_ret() {
     enum ChanToRead {
         Str,
-        Usize
+        Usize,
     }
 
     let (tcs, rcs) = session_channel();
     let (tcu, rcu) = session_channel();
 
     // Spawn threads
-    spawn(move|| send_str(tcs));
+    spawn(move || send_str(tcs));
 
     // The lifetime of `sel` is reduced to the point where we call
     // `wait()`. This ensures we don't hold on to Chan references, but still
     // prevents using the channels the ChanSelect holds references to.
     let chan_to_read = {
         let mut sel = ChanSelect::new();
-        sel.add_recv_ret(&rcs, ChanToRead::Str);   // Assigned 0
+        sel.add_recv_ret(&rcs, ChanToRead::Str); // Assigned 0
         sel.add_recv_ret(&rcu, ChanToRead::Usize); // Assigned 1
-        sel.wait()     // Destroys the ChanSelect, releases references to
-            // rcs and rcu
+        sel.wait() // Destroys the ChanSelect, releases references to
+        // rcs and rcu
     };
 
     send_usize(tcu);

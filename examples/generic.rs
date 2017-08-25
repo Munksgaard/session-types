@@ -8,11 +8,11 @@ use session_types::*;
 
 use std::thread::spawn;
 
-fn srv<A: std::marker::Send+'static>(x: A, c: Chan<(), Send<A, Eps>>) {
+fn srv<A: std::marker::Send + 'static>(x: A, c: Chan<(), Send<A, Eps>>) {
     c.send(x).close();
 }
 
-fn cli<A: std::marker::Send+std::fmt::Debug+'static>(c: Chan<(), Recv<A, Eps>>) {
+fn cli<A: std::marker::Send + std::fmt::Debug + 'static>(c: Chan<(), Recv<A, Eps>>) {
     let (c, x) = c.recv();
     println!("{:?}", x);
     c.close();

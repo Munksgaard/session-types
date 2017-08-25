@@ -1,7 +1,6 @@
 /// This is an implementation of an echo server.
 
 /// One process reads input and sends it to the other process, which outputs it.
-
 #[macro_use]
 extern crate session_types;
 use session_types::*;
@@ -10,7 +9,6 @@ use std::thread::spawn;
 
 type Srv = Offer<Eps, Recv<String, Var<Z>>>;
 fn srv(c: Chan<(), Rec<Srv>>) {
-
     let mut c = c.enter();
 
     loop {
@@ -31,7 +29,6 @@ fn srv(c: Chan<(), Rec<Srv>>) {
 
 type Cli = <Srv as HasDual>::Dual;
 fn cli(c: Chan<(), Rec<Cli>>) {
-
     let stdin = std::io::stdin();
     let mut count = 0usize;
 
