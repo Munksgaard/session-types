@@ -601,8 +601,8 @@ macro_rules! offer {
         $id:ident, $branch:ident => $code:expr, $($t:tt)+
     ) => (
         match $id.offer() {
-            Left($id) => $code,
-            Right($id) => offer!{ $id, $($t)+ }
+            $crate::Left($id) => $code,
+            $crate::Right($id) => offer!{ $id, $($t)+ }
         }
     );
     (
@@ -619,8 +619,8 @@ macro_rules! try_offer {
         $id:ident, $branch:ident => $code:expr, $($t:tt)+
     ) => (
         match $id.try_offer() {
-            Ok(Left($id)) => $code,
-            Ok(Right($id)) => try_offer!{ $id, $($t)+ },
+            Ok($crate::Left($id)) => $code,
+            Ok($crate::Right($id)) => try_offer!{ $id, $($t)+ },
             Err($id) => Err($id)
         }
     );
