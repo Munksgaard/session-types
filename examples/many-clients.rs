@@ -1,5 +1,6 @@
-extern crate session_types;
+
 extern crate rand;
+extern crate session_types;
 
 use session_types::*;
 use std::sync::mpsc::{channel, Receiver};
@@ -24,7 +25,7 @@ fn server(rx: Receiver<Chan<(), Server>>) {
             Ok(c) => {
                 spawn(move || server_handler(c));
                 count += 1;
-            },
+            }
             Err(_) => break,
         }
     }
@@ -38,7 +39,7 @@ fn client_handler(c: Chan<(), Client>) {
             let (c, n2) = c.recv();
             c.close();
             println!("{} + 42 = {}", n, n2);
-        },
+        }
         Right(c) => {
             c.close();
             println!("{} + 42 is an overflow :(", n);
