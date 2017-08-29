@@ -10,7 +10,7 @@ before_script:
     pip install 'travis-cargo<0.2' --user &&
     export PATH=$HOME/.local.bin:$PATH
   - export PATH="$PATH:$HOME/.cargo/bin"
-  - which rustfmt || travis-cargo --only nightly install -- rustfmt-nightly
+  - which rustfmt || TRAVIS_CARGO_NIGHTLY_FEATURE="" travis-cargo --only nightly install -- rustfmt-nightly
 script:
   - |
     travis-cargo --only nightly fmt -- --write-mode=diff &&
