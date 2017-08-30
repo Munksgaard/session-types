@@ -20,14 +20,9 @@ fn server_handler(c: Chan<(), Server>) {
 
 fn server(rx: Receiver<Chan<(), Server>>) {
     let mut count = 0;
-    loop {
-        match rx.recv() {
-            Ok(c) => {
-                spawn(move || server_handler(c));
-                count += 1;
-            }
-            Err(_) => break,
-        }
+    while let Ok(c) = rx.recv() {
+        spawn(move || server_handler(c));
+        count += 1;
     }
     println!("Handled {} connections", count);
 }

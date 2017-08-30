@@ -1,4 +1,4 @@
-//! session_types
+//! `session_types`
 //!
 //! This is an implementation of *session types* in Rust.
 //!
