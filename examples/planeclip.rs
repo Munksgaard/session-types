@@ -60,9 +60,9 @@ fn intersect(p1: Point, p2: Point, plane: Plane) -> Option<Point> {
 type SendList<A> = Rec<Choose<Eps, Send<A, Var<Z>>>>;
 type RecvList<A> = Rec<Offer<Eps, Recv<A, Var<Z>>>>;
 
-fn sendlist<A: std::marker::Send + Copy + 'static>(c: Chan<(), SendList<A>>, xs: Vec<A>) {
+fn sendlist<A: std::marker::Send + Copy + 'static>(c: Chan<(), SendList<A>>, xs: &Vec<A>) {
     let mut c = c.enter();
-    for x in xs.iter() {
+    for x in xs {
         let c1 = c.sel2().send(*x);
         c = c1.zero();
     }
@@ -135,10 +135,10 @@ fn clipper(plane: Plane, ic: Chan<(), RecvList<Point>>, oc: Chan<(), SendList<Po
 
 fn clipmany(planes: Vec<Plane>, points: Vec<Point>) -> Vec<Point> {
     let (tx, rx) = session_channel();
-    spawn(move || sendlist(tx, points));
+    spawn(move || sendlist(tx, &points));
     let mut rx = rx;
 
-    for plane in planes.into_iter() {
+    for plane in planes {
         let (tx2, rx2) = session_channel();
         spawn(move || clipper(plane, rx, tx2));
         rx = rx2;

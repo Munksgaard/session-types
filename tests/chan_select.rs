@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate session_types;
 
 #[cfg(feature = "chan_select")]
