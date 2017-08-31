@@ -60,6 +60,7 @@
 //! }
 //! ```
 #![cfg_attr(feature = "chan_select", feature(mpsc_select))]
+#![cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
 
 use std::marker;
 use std::thread::spawn;
