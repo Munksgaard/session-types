@@ -1,4 +1,4 @@
-
+#![cfg_attr(feature = "cargo-clippy", allow(needless_pass_by_value))]
 extern crate rand;
 extern crate session_types;
 
