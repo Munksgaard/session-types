@@ -3,7 +3,12 @@ use session_types::*;
 
 use std::thread::spawn;
 
-fn client(n: u64, c: Chan<(), Send<u64, Eps>>) {
+enum Msg {
+    U64(u64)
+}
+
+fn client(n: u64, c: Chan<(), Send<Msg, Eps>, Msg>) {
+    let n = Msg::U64(n);
     c.send(n).close()
 }
 
@@ -21,7 +26,7 @@ fn main() {
 
     let res = c2.try_recv();
     assert!(res.is_ok());
-    let (c, n_) = res.ok().unwrap();
+    let (c, Msg::U64(n_)) = res.ok().unwrap();
     assert_eq!(n, n_);
 
     c.close();
