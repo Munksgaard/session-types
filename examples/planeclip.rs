@@ -20,7 +20,7 @@ struct Point(f64, f64, f64);
 
 impl Rand for Point {
     fn rand<R: Rng>(rng: &mut R) -> Self {
-        Point(rng.next_f64(), rng.next_f64(), rng.next_f64())
+        Point(rng.gen(), rng.gen(), rng.gen())
     }
 }
 
@@ -30,10 +30,10 @@ struct Plane(f64, f64, f64, f64);
 impl Rand for Plane {
     fn rand<R: Rng>(rng: &mut R) -> Self {
         Plane(
-            rng.next_f64(),
-            rng.next_f64(),
-            rng.next_f64(),
-            rng.next_f64(),
+            rng.gen(),
+            rng.gen(),
+            rng.gen(),
+            rng.gen(),
         )
     }
 }
