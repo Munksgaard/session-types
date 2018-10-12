@@ -59,19 +59,22 @@
 //!     connect(srv, cli);
 //! }
 //! ```
-#![cfg_attr(feature = "chan_select", feature(mpsc_select))]
 #![cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
+
+extern crate crossbeam_channel;
 
 use std::marker;
 use std::thread::spawn;
 use std::mem::transmute;
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::marker::PhantomData;
 
 #[cfg(feature = "chan_select")]
-use std::sync::mpsc::Select;
-#[cfg(feature = "chan_select")]
 use std::collections::HashMap;
+
+use crossbeam_channel::{unbounded, Receiver, Sender};
+
+#[cfg(feature = "chan_select")]
+use crossbeam_channel::Select;
 
 pub use Branch::*;
 
@@ -82,7 +85,7 @@ pub struct Chan<E, P>(Sender<Box<u8>>, Receiver<Box<u8>>, PhantomData<(E, P)>);
 
 unsafe fn write_chan<A: marker::Send + 'static, E, P>(&Chan(ref tx, _, _): &Chan<E, P>, x: A) {
     let tx: &Sender<Box<A>> = transmute(tx);
-    tx.send(Box::new(x)).unwrap();
+    tx.send(Box::new(x));
 }
 
 unsafe fn read_chan<A: marker::Send + 'static, E, P>(&Chan(_, ref rx, _): &Chan<E, P>) -> A {
@@ -93,14 +96,10 @@ unsafe fn read_chan<A: marker::Send + 'static, E, P>(&Chan(_, ref rx, _): &Chan<
 unsafe fn try_read_chan<A: marker::Send + 'static, E, P>(
     &Chan(_, ref rx, _): &Chan<E, P>,
 ) -> Option<A> {
-    use std::sync::mpsc::TryRecvError;
     let rx: &Receiver<Box<A>> = transmute(rx);
     match rx.try_recv() {
-        Ok(a) => Some(*a),
-        Err(e) => match e {
-            TryRecvError::Empty => None,
-            TryRecvError::Disconnected => panic!("ERROR: try_read_chan: sender hung up"),
-        },
+        Some(a) => Some(*a),
+        None => None,
     }
 }
 
@@ -528,8 +527,8 @@ impl<'c> ChanSelect<'c, usize> {
 /// Returns two session channels
 #[must_use]
 pub fn session_channel<P: HasDual>() -> (Chan<(), P>, Chan<(), P::Dual>) {
-    let (tx1, rx1) = channel();
-    let (tx2, rx2) = channel();
+    let (tx1, rx1) = unbounded();
+    let (tx2, rx2) = unbounded();
 
     let c1 = Chan(tx1, rx2, PhantomData);
     let c2 = Chan(tx2, rx1, PhantomData);

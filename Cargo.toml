@@ -12,6 +12,9 @@ keywords = ["session", "types", "channels", "concurrency", "communication"]
 
 license = "MIT"
 
+[dependencies]
+crossbeam-channel = "0.2.6"
+
 [dev-dependencies]
 compiletest_rs = { version = "0.3.16", features = ["stable"] }
 rand = "0.5.5"
