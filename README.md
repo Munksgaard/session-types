@@ -2,6 +2,8 @@ session-types
 -------------
 
 [![Build Status](https://travis-ci.org/Munksgaard/session-types.svg?branch=master)](https://travis-ci.org/Munksgaard/session-types)
+[![Cargo](https://img.shields.io/crates/v/session_types.svg)](https://crates.io/crates/session_types)
+[![Documentation](https://docs.rs/session_types/badge.svg)](https://docs.rs/session_types)
 
 This is an implementation of session types in Rust.
 
