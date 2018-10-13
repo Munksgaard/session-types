@@ -11,29 +11,30 @@ extern crate session_types;
 
 use session_types::*;
 
-use rand::{Rand, Rng};
+use rand::{random, Rng};
+use rand::distributions::{Distribution, Standard};
 
 use std::thread::spawn;
 
 #[derive(Debug, Copy, Clone)]
 struct Point(f64, f64, f64);
 
-impl Rand for Point {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
-        Point(rng.next_f64(), rng.next_f64(), rng.next_f64())
+impl Distribution<Point> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Point {
+        Point(rng.gen(), rng.gen(), rng.gen())
     }
 }
 
 #[derive(Debug, Copy, Clone)]
 struct Plane(f64, f64, f64, f64);
 
-impl Rand for Plane {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
+impl Distribution<Plane> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Plane {
         Plane(
-            rng.next_f64(),
-            rng.next_f64(),
-            rng.next_f64(),
-            rng.next_f64(),
+            rng.gen(),
+            rng.gen(),
+            rng.gen(),
+            rng.gen(),
         )
     }
 }
@@ -161,13 +162,12 @@ fn normalize_plane(Plane(a, b, c, d): Plane) -> Plane {
 }
 
 fn bench(n: usize, m: usize) {
-    let mut g = rand::thread_rng();
     let points = (0..n)
-        .map(|_| rand::Rand::rand(&mut g))
+        .map(|_| random())
         .map(normalize_point)
         .collect();
     let planes = (0..m)
-        .map(|_| rand::Rand::rand(&mut g))
+        .map(|_| random())
         .map(normalize_plane)
         .collect();
 
