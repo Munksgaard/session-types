@@ -13,8 +13,8 @@ keywords = ["session", "types", "channels", "concurrency", "communication"]
 license = "MIT"
 
 [dev-dependencies]
-rand = "*"
 compiletest_rs = "0.3.11"
+rand = "0.5.5"
 
 [features]
 default = []
