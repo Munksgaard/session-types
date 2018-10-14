@@ -13,11 +13,9 @@ keywords = ["session", "types", "channels", "concurrency", "communication"]
 license = "MIT"
 
 [dev-dependencies]
+compiletest_rs = { version = "0.3.11", features = ["stable"] }
 rand = "0.5.5"
 
 [features]
 default = []
-chan_select = ["compiletest_rs"]
-
-[dependencies]
-compiletest_rs = { version = "0.3.11", optional = true }
+chan_select = []
