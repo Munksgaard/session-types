@@ -134,39 +134,44 @@ pub struct Rec<P>(PhantomData<P>);
 /// out of.
 pub struct Var<N>(PhantomData<N>);
 
-pub unsafe trait HasDual {
+/// The HasDual trait defines the dual relationship between protocols.
+///
+/// Any valid protocol has a corresponding dual.
+///
+/// This trait is sealed and cannot be implemented outside of session-types
+pub trait HasDual: private::Sealed {
     type Dual;
 }
 
-unsafe impl HasDual for Eps {
+impl HasDual for Eps {
     type Dual = Eps;
 }
 
-unsafe impl<A, P: HasDual> HasDual for Send<A, P> {
+impl<A, P: HasDual> HasDual for Send<A, P> {
     type Dual = Recv<A, P::Dual>;
 }
 
-unsafe impl<A, P: HasDual> HasDual for Recv<A, P> {
+impl<A, P: HasDual> HasDual for Recv<A, P> {
     type Dual = Send<A, P::Dual>;
 }
 
-unsafe impl<P: HasDual, Q: HasDual> HasDual for Choose<P, Q> {
+impl<P: HasDual, Q: HasDual> HasDual for Choose<P, Q> {
     type Dual = Offer<P::Dual, Q::Dual>;
 }
 
-unsafe impl<P: HasDual, Q: HasDual> HasDual for Offer<P, Q> {
+impl<P: HasDual, Q: HasDual> HasDual for Offer<P, Q> {
     type Dual = Choose<P::Dual, Q::Dual>;
 }
 
-unsafe impl HasDual for Var<Z> {
+impl HasDual for Var<Z> {
     type Dual = Var<Z>;
 }
 
-unsafe impl<N> HasDual for Var<S<N>> {
+impl<N> HasDual for Var<S<N>> {
     type Dual = Var<S<N>>;
 }
 
-unsafe impl<P: HasDual> HasDual for Rec<P> {
+impl<P: HasDual> HasDual for Rec<P> {
     type Dual = Rec<P::Dual>;
 }
 
@@ -544,6 +549,20 @@ where
     let t = spawn(move || srv(c1));
     cli(c2);
     t.join().unwrap();
+}
+
+mod private {
+    use super::*;
+    pub trait Sealed {}
+
+    // Impl for all exported protocol types
+    impl Sealed for Eps {}
+    impl<A, P> Sealed for Send<A, P> {}
+    impl<A, P> Sealed for Recv<A, P> {}
+    impl<P, Q> Sealed for Choose<P, Q> {}
+    impl<P, Q> Sealed for Offer<P, Q> {}
+    impl<Z> Sealed for Var<Z> {}
+    impl<P> Sealed for Rec<P> {}
 }
 
 /// This macro is convenient for server-like protocols of the form:
