@@ -33,7 +33,7 @@ fn cli(c: Chan<(), Rec<Cli>>) {
     let mut count = 0usize;
 
     let mut c = c.enter();
-    let mut buf = "".to_string();
+    let mut buf = String::with_capacity(1024);
     loop {
         stdin.read_line(&mut buf).ok().unwrap();
         if !buf.is_empty() {
@@ -57,6 +57,7 @@ fn cli(c: Chan<(), Rec<Cli>>) {
 
 fn main() {
     let (c1, c2) = session_channel();
-    spawn(move || srv(c1));
+    let t = spawn(move || srv(c1));
     cli(c2);
+    let _ = t.join();
 }
