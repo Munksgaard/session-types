@@ -57,6 +57,7 @@ fn cli(c: Chan<(), Rec<Cli>>) {
 
 fn main() {
     let (c1, c2) = session_channel();
+    println!("Starting echo server. Press 'q' to quit.");
     let t = spawn(move || srv(c1));
     cli(c2);
     let _ = t.join();
