@@ -68,12 +68,10 @@ use std::thread::spawn;
 use std::mem::transmute;
 use std::marker::PhantomData;
 
-#[cfg(feature = "chan_select")]
 use std::collections::HashMap;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
 
-#[cfg(feature = "chan_select")]
 use crossbeam_channel::Select;
 
 pub use Branch::*;
@@ -85,7 +83,7 @@ pub struct Chan<E, P>(Sender<Box<u8>>, Receiver<Box<u8>>, PhantomData<(E, P)>);
 
 unsafe fn write_chan<A: marker::Send + 'static, E, P>(&Chan(ref tx, _, _): &Chan<E, P>, x: A) {
     let tx: &Sender<Box<A>> = transmute(tx);
-    tx.send(Box::new(x));
+    tx.send(Box::new(x)).unwrap()
 }
 
 unsafe fn read_chan<A: marker::Send + 'static, E, P>(&Chan(_, ref rx, _): &Chan<E, P>) -> A {
@@ -98,8 +96,8 @@ unsafe fn try_read_chan<A: marker::Send + 'static, E, P>(
 ) -> Option<A> {
     let rx: &Receiver<Box<A>> = transmute(rx);
     match rx.try_recv() {
-        Some(a) => Some(*a),
-        None => None,
+        Ok(a) => Some(*a),
+        Err(_) => None,
     }
 }
 
@@ -389,7 +387,6 @@ impl<E, P, N> Chan<(P, E), Var<S<N>>> {
 /// protocol (and in the exact same point of the protocol), wait for one of them
 /// to receive. Removes the receiving channel from the vector and returns both
 /// the channel and the new vector.
-#[cfg(feature = "chan_select")]
 #[must_use]
 pub fn hselect<E, P, A>(
     mut chans: Vec<Chan<E, Recv<A, P>>>,
@@ -401,36 +398,22 @@ pub fn hselect<E, P, A>(
 
 /// An alternative version of homogeneous select, returning the index of the Chan
 /// that is ready to receive.
-#[cfg(feature = "chan_select")]
 pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
     let mut map = HashMap::new();
 
     let id = {
-        let sel = Select::new();
+        let mut sel = Select::new();
         let mut handles = Vec::with_capacity(chans.len()); // collect all the handles
 
         for (i, chan) in chans.iter().enumerate() {
             let &Chan(_, ref rx, _) = chan;
-            let handle = sel.handle(rx);
-            map.insert(handle.id(), i);
+            let handle = sel.recv(rx);
+            map.insert(handle, i);
             handles.push(handle);
         }
 
-        for handle in handles.iter_mut() {
-            // Add
-            unsafe {
-                handle.add();
-            }
-        }
+        let id = sel.ready();
 
-        let id = sel.wait();
-
-        for handle in handles.iter_mut() {
-            // Clean up
-            unsafe {
-                handle.remove();
-            }
-        }
 
         id
     };

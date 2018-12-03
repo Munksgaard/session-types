@@ -21,6 +21,33 @@ macro_rules! recv_assert_eq_close(
 
 #[cfg(feature = "chan_select")]
 #[test]
+fn chan_select_hselect() {
+    let (tcs, rcs) = session_channel();
+    let (tcu, rcu) = session_channel();
+
+    let receivers = vec!(rcs, rcu);
+
+    let () = tcs.send(1u64).close();
+
+    let (ready, mut rest) = hselect(receivers);
+
+    let (toClose, received) = ready.recv();
+    assert_eq!(received, 1u64);
+    toClose.close();
+
+    let () = tcu.send(2u64).close();
+
+    let () = rest
+        .drain(..)
+        .for_each(|r| {
+            let (toClose, received) = r.recv();
+            assert_eq!(received, 2u64);
+            toClose.close()
+        });
+}
+
+#[cfg(feature = "chan_select")]
+#[test]
 fn chan_select_simple() {
     let (tcs, rcs) = session_channel();
     let (tcu, rcu) = session_channel();

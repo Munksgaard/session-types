@@ -13,7 +13,7 @@ keywords = ["session", "types", "channels", "concurrency", "communication"]
 license = "MIT"
 
 [dependencies]
-crossbeam-channel = "0.2.6"
+crossbeam-channel = { git = "https://github.com/stjepang/crossbeam", branch = "select-ready" }
 
 [dev-dependencies]
 compiletest_rs = { version = "0.3.16", features = ["stable"] }
