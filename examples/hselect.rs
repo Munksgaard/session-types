@@ -1,7 +1,5 @@
 extern crate session_types;
 
-use std::thread::spawn;
-use std::borrow::ToOwned;
 use session_types::*;
 
 fn main() {
@@ -14,17 +12,17 @@ fn main() {
 
     let (ready, mut rest) = hselect(receivers);
 
-    let (toClose, s) = ready.recv();
+    let (to_close, s) = ready.recv();
     println!("Got a response: \"{}\"", s);
-    toClose.close();
+    to_close.close();
 
     let () = tcu.send("Hello, World from TCU!".to_string()).close();
 
     let () = rest
         .drain(..)
         .for_each(|r| {
-            let (toClose, s) = r.recv();
+            let (to_close, s) = r.recv();
             println!("Also got this: \"{}\"", s);
-            toClose.close()
+            to_close.close()
         });
 }

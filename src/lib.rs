@@ -477,7 +477,7 @@ impl<'c> ChanSelect<'c> {
     pub fn wait(self) -> usize {
         let mut sel = Select::new();
         for rx in self.receivers.into_iter() {
-            let h = sel.recv(rx);
+            sel.recv(rx);
         }
 
         sel.ready()
@@ -554,7 +554,7 @@ mod private {
 /// we can use the `offer!` macro as follows:
 ///
 /// ```rust
-/// #[macro_use] extern crate session_types;
+/// extern crate session_types;
 /// use session_types::*;
 /// use std::thread::spawn;
 ///
@@ -630,7 +630,7 @@ macro_rules! try_offer {
 /// # Examples
 ///
 /// ```rust
-/// #[macro_use] extern crate session_types;
+/// extern crate session_types;
 /// use session_types::*;
 /// use std::thread::spawn;
 ///
@@ -666,7 +666,6 @@ macro_rules! try_offer {
 /// ```
 ///
 /// ```rust
-/// #[macro_use]
 /// extern crate session_types;
 /// extern crate rand;
 ///

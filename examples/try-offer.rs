@@ -3,7 +3,6 @@
 //! the "server" echos the received character after converting to uppercase,
 //! and the "client" generates a some characters at different intervals.
 
-#[macro_use]
 extern crate session_types;
 use session_types::*;
 

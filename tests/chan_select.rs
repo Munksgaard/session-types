@@ -1,7 +1,6 @@
 extern crate session_types;
 
 use std::thread::spawn;
-use std::borrow::ToOwned;
 use session_types::*;
 
 // recv and assert a value, then close the channel
@@ -26,18 +25,18 @@ fn chan_select_hselect() {
 
     let (ready, mut rest) = hselect(receivers);
 
-    let (toClose, received) = ready.recv();
+    let (to_close, received) = ready.recv();
     assert_eq!(received, 1u64);
-    toClose.close();
+    to_close.close();
 
     let () = tcu.send(2u64).close();
 
     let () = rest
         .drain(..)
         .for_each(|r| {
-            let (toClose, received) = r.recv();
+            let (to_close, received) = r.recv();
             assert_eq!(received, 2u64);
-            toClose.close()
+            to_close.close()
         });
 }
 
