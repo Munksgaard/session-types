@@ -18,7 +18,3 @@ crossbeam-channel = { git = "https://github.com/stjepang/crossbeam", branch = "s
 [dev-dependencies]
 compiletest_rs = { version = "0.3.16", features = ["stable"] }
 rand = "0.5.5"
-
-[features]
-default = []
-chan_select = []
