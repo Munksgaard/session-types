@@ -131,6 +131,24 @@ pub struct Rec<P>(PhantomData<P>);
 /// out of.
 pub struct Var<N>(PhantomData<N>);
 
+trait HasReceiver {
+    fn recv(&self) -> &Receiver<Box<u8>>;
+}
+
+impl<E, A, P> HasReceiver for Chan<E, Recv<A, P>> {
+    fn recv(&self) -> &Receiver<Box<u8>> {
+        let &Chan(_, ref rx, _) = self;
+        rx
+    }
+}
+
+impl<E, A, P> HasReceiver for Chan<E, Offer<A, P>> {
+    fn recv(&self) -> &Receiver<Box<u8>> {
+        let &Chan(_, ref rx, _) = self;
+        rx
+    }
+}
+
 /// The HasDual trait defines the dual relationship between protocols.
 ///
 /// Any valid protocol has a corresponding dual.
@@ -429,83 +447,62 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
 ///
 /// The type parameter T is a return type, ie we store a value of some type T
 /// that is returned in case its associated channels is selected on `wait()`
-#[cfg(feature = "chan_select")]
-pub struct ChanSelect<'c, T> {
-    chans: Vec<(&'c Chan<(), ()>, T)>,
+pub struct ChanSelect<'c> {
+    receivers: Vec<&'c Receiver<Box<u8>>>,
 }
 
-#[cfg(feature = "chan_select")]
-impl<'c, T> ChanSelect<'c, T> {
-    pub fn new() -> ChanSelect<'c, T> {
-        ChanSelect { chans: Vec::new() }
+impl<'c> ChanSelect<'c> {
+    pub fn new() -> ChanSelect<'c> {
+        ChanSelect { receivers: Vec::new() }
     }
 
     /// Add a channel whose next step is `Recv`
     ///
     /// Once a channel has been added it cannot be interacted with as long as it
     /// is borrowed here (by virtue of borrow checking and lifetimes).
-    pub fn add_recv_ret<E, P, A: marker::Send>(&mut self, chan: &'c Chan<E, Recv<A, P>>, ret: T) {
-        self.chans.push((unsafe { transmute(chan) }, ret));
+    pub fn add_recv<E, P, A: marker::Send>(&mut self, chan: &'c Chan<E, Recv<A, P>>) {
+        let &Chan(_, ref rx, _) = chan;
+        let _ = self.receivers.push(rx);
     }
 
-    pub fn add_offer_ret<E, P, Q>(&mut self, chan: &'c Chan<E, Offer<P, Q>>, ret: T) {
-        self.chans.push((unsafe { transmute(chan) }, ret));
+    pub fn add_offer<E, P, Q>(&mut self, chan: &'c Chan<E, Offer<P, Q>>) {
+        let &Chan(_, ref rx, _) = chan;
+        let _ = self.receivers.push(rx);
     }
 
     /// Find a Receiver (and hence a Chan) that is ready to receive.
     ///
     /// This method consumes the ChanSelect, freeing up the borrowed Receivers
     /// to be consumed.
-    pub fn wait(self) -> T {
-        let sel = Select::new();
-        let mut handles = Vec::with_capacity(self.chans.len());
-        let mut map = HashMap::new();
-
-        for (chan, ret) in self.chans.into_iter() {
-            let &Chan(_, ref rx, _) = chan;
-            let h = sel.handle(rx);
-            let id = h.id();
-            map.insert(id, ret);
-            handles.push(h);
+    pub fn wait(self) -> usize {
+        let mut sel = Select::new();
+        for rx in self.receivers.into_iter() {
+            let h = sel.recv(rx);
         }
 
-        for handle in handles.iter_mut() {
-            unsafe {
-                handle.add();
-            }
-        }
-
-        let id = sel.wait();
-
-        for handle in handles.iter_mut() {
-            unsafe {
-                handle.remove();
-            }
-        }
-        map.remove(&id).unwrap()
+        sel.ready()
     }
 
     /// How many channels are there in the structure?
     pub fn len(&self) -> usize {
-        self.chans.len()
+        self.receivers.len()
     }
 }
 
-/// Default use of ChanSelect works with usize and returns the index
-/// of the selected channel. This is also the implementation used by
-/// the `chan_select!` macro.
-#[cfg(feature = "chan_select")]
-impl<'c> ChanSelect<'c, usize> {
-    pub fn add_recv<E, P, A: marker::Send>(&mut self, c: &'c Chan<E, Recv<A, P>>) {
-        let index = self.chans.len();
-        self.add_recv_ret(c, index);
-    }
+// /// Default use of ChanSelect works with usize and returns the index
+// /// of the selected channel. This is also the implementation used by
+// /// the `chan_select!` macro.
+// impl<'c> ChanSelect<'c, usize> {
+//     pub fn add_recv<E, P, A: marker::Send>(&mut self, c: &'c Chan<E, Recv<A, P>>) {
+//         let index = self.chans.len();
+//         self.add_recv_ret(c, index);
+//     }
 
-    pub fn add_offer<E, P, Q>(&mut self, c: &'c Chan<E, Offer<P, Q>>) {
-        let index = self.chans.len();
-        self.add_offer_ret(c, index);
-    }
-}
+//     pub fn add_offer<E, P, Q>(&mut self, c: &'c Chan<E, Offer<P, Q>>) {
+//         let index = self.chans.len();
+//         self.add_offer_ret(c, index);
+//     }
+// }
 
 /// Returns two session channels
 #[must_use]
@@ -669,7 +666,6 @@ macro_rules! try_offer {
 /// ```
 ///
 /// ```rust
-/// #![feature(rand)]
 /// #[macro_use]
 /// extern crate session_types;
 /// extern crate rand;
@@ -735,7 +731,6 @@ macro_rules! try_offer {
 ///     srv(ca1, cb1);
 /// }
 /// ```
-#[cfg(features = "chan_select")]
 #[macro_export]
 macro_rules! chan_select {
     (

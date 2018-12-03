@@ -1,14 +1,10 @@
 extern crate session_types;
 
-#[cfg(feature = "chan_select")]
 use std::thread::spawn;
-#[cfg(feature = "chan_select")]
 use std::borrow::ToOwned;
-#[cfg(feature = "chan_select")]
 use session_types::*;
 
 // recv and assert a value, then close the channel
-#[cfg(feature = "chan_select")]
 macro_rules! recv_assert_eq_close(
     ($e:expr, $rx:ident.recv())
         =>
@@ -19,7 +15,6 @@ macro_rules! recv_assert_eq_close(
     })
 );
 
-#[cfg(feature = "chan_select")]
 #[test]
 fn chan_select_hselect() {
     let (tcs, rcs) = session_channel();
@@ -46,7 +41,6 @@ fn chan_select_hselect() {
         });
 }
 
-#[cfg(feature = "chan_select")]
 #[test]
 fn chan_select_simple() {
     let (tcs, rcs) = session_channel();
@@ -89,13 +83,8 @@ fn chan_select_simple() {
     recv_assert_eq_close!("Hello, World!".to_owned(), rcs.recv());
 }
 
-#[cfg(feature = "chan_select")]
 #[test]
 fn chan_select_add_ret() {
-    enum ChanToRead {
-        Str,
-        Usize,
-    }
 
     let (tcs, rcs) = session_channel();
     let (tcu, rcu) = session_channel();
@@ -108,8 +97,8 @@ fn chan_select_add_ret() {
     // prevents using the channels the ChanSelect holds references to.
     let chan_to_read = {
         let mut sel = ChanSelect::new();
-        sel.add_recv_ret(&rcs, ChanToRead::Str); // Assigned 0
-        sel.add_recv_ret(&rcu, ChanToRead::Usize); // Assigned 1
+        sel.add_recv(&rcs); // Assigned 0
+        sel.add_recv(&rcu); // Assigned 1
         sel.wait() // Destroys the ChanSelect, releases references to
         // rcs and rcu
     };
@@ -117,11 +106,11 @@ fn chan_select_add_ret() {
     send_usize(tcu);
 
     match chan_to_read {
-        ChanToRead::Str => {
+        0 => {
             recv_assert_eq_close!("Hello, World!".to_owned(), rcs.recv());
             recv_assert_eq_close!(42, rcu.recv());
         }
-        ChanToRead::Usize => {
+        _ => {
             panic!("Unexpected read of usize chan before str chan!");
         }
     }
@@ -129,12 +118,10 @@ fn chan_select_add_ret() {
 
 // Utility functions
 
-#[cfg(feature = "chan_select")]
 fn send_str(c: Chan<(), Send<String, Eps>>) {
     c.send("Hello, World!".to_string()).close();
 }
 
-#[cfg(feature = "chan_select")]
 fn send_usize(c: Chan<(), Send<usize, Eps>>) {
     c.send(42).close();
 }
