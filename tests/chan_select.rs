@@ -82,39 +82,6 @@ fn chan_select_simple() {
     recv_assert_eq_close!("Hello, World!".to_owned(), rcs.recv());
 }
 
-#[test]
-fn chan_select_add_ret() {
-
-    let (tcs, rcs) = session_channel();
-    let (tcu, rcu) = session_channel();
-
-    // Spawn threads
-    spawn(move || send_str(tcs));
-
-    // The lifetime of `sel` is reduced to the point where we call
-    // `wait()`. This ensures we don't hold on to Chan references, but still
-    // prevents using the channels the ChanSelect holds references to.
-    let chan_to_read = {
-        let mut sel = ChanSelect::new();
-        sel.add_recv(&rcs); // Assigned 0
-        sel.add_recv(&rcu); // Assigned 1
-        sel.wait() // Destroys the ChanSelect, releases references to
-        // rcs and rcu
-    };
-
-    send_usize(tcu);
-
-    match chan_to_read {
-        0 => {
-            recv_assert_eq_close!("Hello, World!".to_owned(), rcs.recv());
-            recv_assert_eq_close!(42, rcu.recv());
-        }
-        _ => {
-            panic!("Unexpected read of usize chan before str chan!");
-        }
-    }
-}
-
 // Utility functions
 
 fn send_str(c: Chan<(), Send<String, Eps>>) {

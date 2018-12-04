@@ -8,7 +8,7 @@ fn main() {
 
     let receivers = vec!(rcs, rcu);
 
-    let () = tcs.send("Hello, World from TCS!".to_string()).close();
+    let _ = tcs.send("Hello, World from TCS!".to_string()).close();
 
     let (ready, mut rest) = hselect(receivers);
 
@@ -16,9 +16,9 @@ fn main() {
     println!("Got a response: \"{}\"", s);
     to_close.close();
 
-    let () = tcu.send("Hello, World from TCU!".to_string()).close();
+    let _ = tcu.send("Hello, World from TCU!".to_string()).close();
 
-    let () = rest
+    let _ = rest
         .drain(..)
         .for_each(|r| {
             let (to_close, s) = r.recv();

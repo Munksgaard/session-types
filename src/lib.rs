@@ -131,24 +131,6 @@ pub struct Rec<P>(PhantomData<P>);
 /// out of.
 pub struct Var<N>(PhantomData<N>);
 
-trait HasReceiver {
-    fn recv(&self) -> &Receiver<Box<u8>>;
-}
-
-impl<E, A, P> HasReceiver for Chan<E, Recv<A, P>> {
-    fn recv(&self) -> &Receiver<Box<u8>> {
-        let &Chan(_, ref rx, _) = self;
-        rx
-    }
-}
-
-impl<E, A, P> HasReceiver for Chan<E, Offer<A, P>> {
-    fn recv(&self) -> &Receiver<Box<u8>> {
-        let &Chan(_, ref rx, _) = self;
-        rx
-    }
-}
-
 /// The HasDual trait defines the dual relationship between protocols.
 ///
 /// Any valid protocol has a corresponding dual.
@@ -488,21 +470,6 @@ impl<'c> ChanSelect<'c> {
         self.receivers.len()
     }
 }
-
-// /// Default use of ChanSelect works with usize and returns the index
-// /// of the selected channel. This is also the implementation used by
-// /// the `chan_select!` macro.
-// impl<'c> ChanSelect<'c, usize> {
-//     pub fn add_recv<E, P, A: marker::Send>(&mut self, c: &'c Chan<E, Recv<A, P>>) {
-//         let index = self.chans.len();
-//         self.add_recv_ret(c, index);
-//     }
-
-//     pub fn add_offer<E, P, Q>(&mut self, c: &'c Chan<E, Offer<P, Q>>) {
-//         let index = self.chans.len();
-//         self.add_offer_ret(c, index);
-//     }
-// }
 
 /// Returns two session channels
 #[must_use]
