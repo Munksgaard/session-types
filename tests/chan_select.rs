@@ -21,7 +21,7 @@ fn chan_select_hselect() {
 
     let receivers = vec!(rcs, rcu);
 
-    let () = tcs.send(1u64).close();
+    tcs.send(1u64).close();
 
     let (ready, mut rest) = hselect(receivers);
 
@@ -29,9 +29,9 @@ fn chan_select_hselect() {
     assert_eq!(received, 1u64);
     to_close.close();
 
-    let () = tcu.send(2u64).close();
+    tcu.send(2u64).close();
 
-    let () = rest
+    rest
         .drain(..)
         .for_each(|r| {
             let (to_close, received) = r.recv();
