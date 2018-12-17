@@ -1,6 +1,5 @@
 extern crate session_types;
 
-use std::thread::spawn;
 use session_types::*;
 
 // recv and assert a value, then close the channel
