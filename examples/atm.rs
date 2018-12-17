@@ -1,5 +1,4 @@
 #![cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
-#[macro_use]
 extern crate session_types;
 use session_types::*;
 use std::thread::spawn;
