@@ -231,16 +231,17 @@ It reads:
 An example implementation:
 
     let c: Chan<(), Server> = …;
-    let mut c = c.enter();
+    let mut c = c.enter();                  // c: Chan<(Offer<…>, ()), Offer<…>>
     loop {
         c = match c.offer() {
-            Branch::Left(c) => {
+            Branch::Left(c) => {            // c: Chan<(Offer<…>, ()), Eps>
                 c.close();
                 break
             },
-            Branch::Right(c) => {
-                let (c, str) = c.recv();
-                c.send(str.len()).zero()
+            Branch::Right(c) => {           // c: Chan<(Offer<…>, ()), Recv<String, Send<usize, Var<Z>>>>
+                let (c, str) = c.recv();    // c: Chan<(Offer<…>, ()), Send<usize, Var<Z>>>
+                let c = c.send(str.len());  // c: Chan<(Offer<…>, ()), Var<Z>>
+                c.zero()                    // c: Chan<(Offer<…>, ()), Offer<…>>
             }
         };
     }
