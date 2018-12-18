@@ -216,6 +216,8 @@ A channel of type `Chan<(P, E), Var<S<N>>>` implements the method `succ() ->
 Chan<E, Var<N>>` that peels away the `P` from the environment and `S` in the
 counter.
 
+### Putting it all together
+
 Using the constructions from above allows us put together more complex
 protocols. For example:
 
