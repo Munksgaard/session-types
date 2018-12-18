@@ -129,7 +129,14 @@ This is the final step of any terminating protocol. The simplest example is:
     type Close = Eps;
 
 Any channel whose type is `Chan<E, Eps>` implements the `close()` method that
-closes the connection.
+closes the connection. `Eps` is its own opposite, ie `<Close as HasDual>::Dual = Eps`
+
+The simplest channels are of type `Chan<(), Eps>`. All you can do with such
+channels is to close the connection:
+
+    let (a, b) = session_channel::<Eps>();
+    a.close();
+    b.close();
 
 ### `Send` and `Recv`
 
