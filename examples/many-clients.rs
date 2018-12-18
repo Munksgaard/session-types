@@ -3,7 +3,6 @@ extern crate rand;
 extern crate session_types;
 
 use session_types::*;
-use std::sync::mpsc::{channel, Receiver};
 use std::thread::spawn;
 use rand::random;
 
@@ -18,13 +17,33 @@ fn server_handler(c: Chan<(), Server>) {
     }
 }
 
-fn server(rx: Receiver<Chan<(), Server>>) {
+/// A channel on which we will receive channels
+///
+type ChanChan = Offer<Eps, Recv<Chan<(), Server>, Var<Z>>>;
+
+/// server sits in a loop accepting session-typed channels. For each received channel, a new thread
+/// is spawned to handle it.
+///
+/// When the server is asked to quit, it returns how many connections were handled
+fn server(rx: Chan<(), Rec<ChanChan>>) -> usize {
+
     let mut count = 0;
-    while let Ok(c) = rx.recv() {
-        spawn(move || server_handler(c));
-        count += 1;
+    let mut c = rx.enter();
+    loop {
+        c = offer! { c,
+            Quit => {
+                c.close();
+                break
+            },
+            NewChan => {
+                let (c, new_chan) = c.recv();
+                spawn(move || server_handler(new_chan));
+                count += 1;
+                c.zero()
+            }
+        }
     }
-    println!("Handled {} connections", count);
+    count
 }
 
 fn client_handler(c: Chan<(), Client>) {
@@ -43,19 +62,24 @@ fn client_handler(c: Chan<(), Client>) {
 }
 
 fn main() {
-    let (tx, rx) = channel();
+    let (tx, rx) = session_channel();
 
     let n: u8 = random();
-    println!("Spawning {} clients", n);
-    for _ in 0..n {
-        let tmp = tx.clone();
-        spawn(move || {
-            let (c1, c2) = session_channel();
-            tmp.send(c1).unwrap();
-            client_handler(c2);
-        });
-    }
-    drop(tx);
+    let mut tx = tx.enter();
 
-    server(rx);
+    println!("Spawning {} clients", n);
+    let mut ts = vec![];
+    for _ in 0..n {
+        let (c1, c2) = session_channel();
+        ts.push(spawn(move || {
+            client_handler(c2);
+        }));
+        tx = tx.sel2().send(c1).zero();
+    }
+    tx.sel1().close();
+    let count = server(rx);
+    for t in ts {
+        let _ = t.join();
+    }
+    println!("Handled {} connections", count);
 }
