@@ -128,7 +128,7 @@ This is the final step of any terminating protocol. The simplest example is:
 
     type Close = Eps;
 
-Any channel whose type is `Chan<E, Eps>` implements the `close()` function that
+Any channel whose type is `Chan<E, Eps>` implements the `close()` method that
 closes the connection.
 
 ### `Send` and `Recv`
@@ -139,9 +139,9 @@ opposite of a `Send` with some type `T` is a `Recv` of type `T`.
     type S = Send<String, Eps>;
     type R = Recv<String, Eps>; // <S as HasDual>::Dual
 
-A channel of type `Chan<E, Send<T, P>>` implements the function `send(T) → Chan<E, P>`.
+A channel of type `Chan<E, Send<T, P>>` implements the method `send(T) → Chan<E, P>`.
 
-A channel of type `Chan<E, Recv<T, Q>>` implements the function `recv() → (T, Chan<E, Q>)`.
+A channel of type `Chan<E, Recv<T, Q>>` implements the method `recv() → (T, Chan<E, Q>)`.
 
 ### `Choose` and `Offer`
 
@@ -150,9 +150,9 @@ inform the other of a decision. The `Choose` and `Offer` constructs model such
 choices.
 
     type C = Choose<Send<String, Eps>, Recv<String, Eps>>;
-    type O = Offer<Recv<String, Eps>, Send<String, Eps>; // <C as Hasdual>::Dual
+    type O = Offer<Recv<String, Eps>, Send<String, Eps>>; // <C as Hasdual>::Dual
 
-A channel of type `Chan<E, Choose<P, Q>>` implements _two_ functions:
+A channel of type `Chan<E, Choose<P, Q>>` implements _two_ methods:
 
  * `sel1() → Chan<E, P>`
  * `sel2() → Chan<E, Q>`
@@ -180,15 +180,15 @@ other process decided to take.
 The type `Rec` implements the ability the recurse in the protocol, ie provides
 an iterator component. The type `Rec<P>` allows repeating the protocol `P`.
 
-A channel of type `Chan<E, Rec<P>>` implements the function `enter() → Chan<(P,
-E), P>`. What `enter()` does is "store" the protocol `P` in the channel
+A channel of type `Chan<E, Rec<P>>` implements the method `enter() → Chan<(P,
+E), P>`. Calling `enter()` "stores" the protocol `P` in the channel
 environment.
 
 The `Var` construct is then used to reference protocols stored in the
 environment. As the environment is essentially a stack, `Var` takes a counter
 that is modeled as a Peano number. `Var<Z>` points to the top of the stack.
 
-A channel of type `Chan<(P, E), Var<Z>>` implements the function `zero() →
+A channel of type `Chan<(P, E), Var<Z>>` implements the method `zero() →
 Chan<(P, E), P>`, ie `Var<Z>` is replaced by `P` at the top of the stack.
 
     type RS = Rec<Send<String, Var<Z>>>;
@@ -197,7 +197,7 @@ Chan<(P, E), P>`, ie `Var<Z>` is replaced by `P` at the top of the stack.
 The following program indefinitely sends some string:
 
     let c: Chan<(), Rec<Send<String, Var<Z>>> = …;
-    let c = c.enter();
+    let mut c = c.enter();
     loop {
         c = c.send("Hello!".to_string()).zero();
     }
@@ -205,11 +205,12 @@ The following program indefinitely sends some string:
 Protocols in the environment can also be popped from the stack with
 `Var<S<N>>`. This requires there to be at least one protocol in the stack.
 
-A channel of type `Chan<(P, E), Var<S<N>>>` implements the function `succ() ->
+A channel of type `Chan<(P, E), Var<S<N>>>` implements the method `succ() ->
 Chan<E, Var<N>>` that peels away the `P` from the environment and `S` in the
 counter.
 
-With all the above, the following protocol should make sense:
+Using the constructions from above allows us put together more complex
+protocols. For example:
 
     type Server = Rec<
                       Offer<
@@ -220,15 +221,17 @@ With all the above, the following protocol should make sense:
 
 It reads:
 
- * Either close the connection, or receive a string
- * If receive is chosen
-   - Send back a `usize`
-   - Go back to the beginning (from `Offer<…>`)
+ * In a loop, either:
+   - Close the connection
+   - Or:
+     1. Receive a `String`
+     2. Send back a `usize`
+     3. Go back to the beginning
 
 An example implementation:
 
     let c: Chan<(), Server> = …;
-    let c = c.enter();
+    let mut c = c.enter();
     loop {
         c = match c.offer() {
             Branch::Left(c) => {
