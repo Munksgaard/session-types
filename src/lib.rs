@@ -62,9 +62,9 @@
 #![cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
 extern crate crossbeam_channel;
 
-use std::marker;
-use std::thread::spawn;
 use std::mem::transmute;
+use std::{marker, mem, ptr};
+use std::thread::spawn;
 use std::marker::PhantomData;
 
 use std::collections::HashMap;
@@ -78,24 +78,23 @@ pub use Branch::*;
 /// A session typed channel. `P` is the protocol and `E` is the environment,
 /// containing potential recursion targets
 #[must_use]
-pub struct Chan<E, P>(Sender<Box<u8>>, Receiver<Box<u8>>, PhantomData<(E, P)>);
+pub struct Chan<E, P>(Sender<*mut u8>, Receiver<*mut u8>, PhantomData<(E, P)>);
+
+unsafe impl<E: marker::Send, P: marker::Send> marker::Send for Chan<E, P> {}
 
 unsafe fn write_chan<A: marker::Send + 'static, E, P>(&Chan(ref tx, _, _): &Chan<E, P>, x: A) {
-    let tx: &Sender<Box<A>> = transmute(tx);
-    tx.send(Box::new(x)).unwrap()
+    tx.send(Box::into_raw(Box::new(x)) as *mut _).unwrap()
 }
 
 unsafe fn read_chan<A: marker::Send + 'static, E, P>(&Chan(_, ref rx, _): &Chan<E, P>) -> A {
-    let rx: &Receiver<Box<A>> = transmute(rx);
-    *rx.recv().unwrap()
+    *Box::from_raw(rx.recv().unwrap() as *mut A)
 }
 
 unsafe fn try_read_chan<A: marker::Send + 'static, E, P>(
     &Chan(_, ref rx, _): &Chan<E, P>,
 ) -> Option<A> {
-    let rx: &Receiver<Box<A>> = transmute(rx);
     match rx.try_recv() {
-        Ok(a) => Some(*a),
+        Ok(a) => Some(*Box::from_raw(a as *mut A)),
         Err(_) => None,
     }
 }
@@ -187,15 +186,14 @@ impl<E> Chan<E, Eps> {
     pub fn close(self) {
         // This method cleans up the channel without running the panicky destructor
         // In essence, it calls the drop glue bypassing the `Drop::drop` method
-        use std::{mem, ptr};
 
         let this = mem::ManuallyDrop::new(self);
 
         let sender = unsafe { ptr::read(&(this).0 as *const _) };
         let receiver = unsafe { ptr::read(&(this).1 as *const _) };
 
-        // drop(sender);
-        // drop(receiver); // drop them
+        drop(sender);
+        drop(receiver); // drop them
     }
 }
 
@@ -417,7 +415,7 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
 /// The type parameter T is a return type, ie we store a value of some type T
 /// that is returned in case its associated channels is selected on `wait()`
 pub struct ChanSelect<'c> {
-    receivers: Vec<&'c Receiver<Box<u8>>>,
+    receivers: Vec<&'c Receiver<*mut u8>>,
 }
 
 impl<'c> ChanSelect<'c> {
