@@ -62,7 +62,6 @@
 #![cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
 extern crate crossbeam_channel;
 
-use std::mem::transmute;
 use std::{marker, mem, ptr};
 use std::thread::spawn;
 use std::marker::PhantomData;
@@ -197,6 +196,13 @@ impl<E> Chan<E, Eps> {
     }
 }
 
+impl<E, P> Chan<E, P> {
+    unsafe fn cast<E2, P2>(self) -> Chan<E2, P2> {
+        let this = mem::ManuallyDrop::new(self);
+        Chan(ptr::read(&(this).0 as *const _), ptr::read(&(this).1 as *const _), PhantomData)
+    }
+}
+
 impl<E, P, A: marker::Send + 'static> Chan<E, Send<A, P>> {
     /// Send a value of type `A` over the channel. Returns a channel with
     /// protocol `P`
@@ -204,7 +210,7 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Send<A, P>> {
     pub fn send(self, v: A) -> Chan<E, P> {
         unsafe {
             write_chan(&self, v);
-            transmute(self)
+            self.cast()
         }
     }
 }
@@ -216,7 +222,7 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Recv<A, P>> {
     pub fn recv(self) -> (Chan<E, P>, A) {
         unsafe {
             let v = read_chan(&self);
-            (transmute(self), v)
+            (self.cast(), v)
         }
     }
 
@@ -225,7 +231,7 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Recv<A, P>> {
     pub fn try_recv(self) -> Result<(Chan<E, P>, A), Self> {
         unsafe {
             if let Some(v) = try_read_chan(&self) {
-                Ok((transmute(self), v))
+                Ok((self.cast(), v))
             } else {
                 Err(self)
             }
@@ -239,7 +245,7 @@ impl<E, P, Q> Chan<E, Choose<P, Q>> {
     pub fn sel1(self) -> Chan<E, P> {
         unsafe {
             write_chan(&self, true);
-            transmute(self)
+            self.cast()
         }
     }
 
@@ -248,7 +254,7 @@ impl<E, P, Q> Chan<E, Choose<P, Q>> {
     pub fn sel2(self) -> Chan<E, Q> {
         unsafe {
             write_chan(&self, false);
-            transmute(self)
+            self.cast()
         }
     }
 }
@@ -319,9 +325,9 @@ impl<E, P, Q> Chan<E, Offer<P, Q>> {
         unsafe {
             let b = read_chan(&self);
             if b {
-                Left(transmute(self))
+                Left(self.cast())
             } else {
-                Right(transmute(self))
+                Right(self.cast())
             }
         }
     }
@@ -332,9 +338,9 @@ impl<E, P, Q> Chan<E, Offer<P, Q>> {
         unsafe {
             if let Some(b) = try_read_chan(&self) {
                 if b {
-                    Ok(Left(transmute(self)))
+                    Ok(Left(self.cast()))
                 } else {
-                    Ok(Right(transmute(self)))
+                    Ok(Right(self.cast()))
                 }
             } else {
                 Err(self)
@@ -348,7 +354,7 @@ impl<E, P> Chan<E, Rec<P>> {
     /// top of the environment stack.
     #[must_use]
     pub fn enter(self) -> Chan<(P, E), P> {
-        unsafe { transmute(self) }
+        unsafe { self.cast() }
     }
 }
 
@@ -356,7 +362,7 @@ impl<E, P> Chan<(P, E), Var<Z>> {
     /// Recurse to the environment on the top of the environment stack.
     #[must_use]
     pub fn zero(self) -> Chan<(P, E), P> {
-        unsafe { transmute(self) }
+        unsafe { self.cast() }
     }
 }
 
@@ -364,7 +370,7 @@ impl<E, P, N> Chan<(P, E), Var<S<N>>> {
     /// Pop the top environment from the environment stack.
     #[must_use]
     pub fn succ(self) -> Chan<E, Var<N>> {
-        unsafe { transmute(self) }
+        unsafe { self.cast() }
     }
 }
 
