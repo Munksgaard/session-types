@@ -60,12 +60,10 @@
 //! }
 //! ```
 #![cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
-
 extern crate crossbeam_channel;
 
-use std::marker;
+use std::{marker, mem, ptr};
 use std::thread::spawn;
-use std::mem::transmute;
 use std::marker::PhantomData;
 
 use std::collections::HashMap;
@@ -79,24 +77,23 @@ pub use Branch::*;
 /// A session typed channel. `P` is the protocol and `E` is the environment,
 /// containing potential recursion targets
 #[must_use]
-pub struct Chan<E, P>(Sender<Box<u8>>, Receiver<Box<u8>>, PhantomData<(E, P)>);
+pub struct Chan<E, P>(Sender<*mut u8>, Receiver<*mut u8>, PhantomData<(E, P)>);
+
+unsafe impl<E: marker::Send, P: marker::Send> marker::Send for Chan<E, P> {}
 
 unsafe fn write_chan<A: marker::Send + 'static, E, P>(&Chan(ref tx, _, _): &Chan<E, P>, x: A) {
-    let tx: &Sender<Box<A>> = transmute(tx);
-    tx.send(Box::new(x)).unwrap()
+    tx.send(Box::into_raw(Box::new(x)) as *mut _).unwrap()
 }
 
 unsafe fn read_chan<A: marker::Send + 'static, E, P>(&Chan(_, ref rx, _): &Chan<E, P>) -> A {
-    let rx: &Receiver<Box<A>> = transmute(rx);
-    *rx.recv().unwrap()
+    *Box::from_raw(rx.recv().unwrap() as *mut A)
 }
 
 unsafe fn try_read_chan<A: marker::Send + 'static, E, P>(
     &Chan(_, ref rx, _): &Chan<E, P>,
 ) -> Option<A> {
-    let rx: &Receiver<Box<A>> = transmute(rx);
     match rx.try_recv() {
-        Ok(a) => Some(*a),
+        Ok(a) => Some(*Box::from_raw(a as *mut A)),
         Err(_) => None,
     }
 }
@@ -185,30 +182,24 @@ impl<E, P> Drop for Chan<E, P> {
 
 impl<E> Chan<E, Eps> {
     /// Close a channel. Should always be used at the end of your program.
-    pub fn close(mut self) {
+    pub fn close(self) {
         // This method cleans up the channel without running the panicky destructor
         // In essence, it calls the drop glue bypassing the `Drop::drop` method
-        use std::mem;
 
-        // Create some dummy values to place the real things inside
-        // This is safe because nobody will read these
-        // mem::swap uses a similar technique (also paired with `forget()`)
-        let mut sender = unsafe { mem::uninitialized() };
-        let mut receiver = unsafe { mem::uninitialized() };
+        let this = mem::ManuallyDrop::new(self);
 
-        // Extract the internal sender/receiver so that we can drop them
-        // We cannot drop directly since moving out of a type
-        // that implements `Drop` is disallowed
-        mem::swap(&mut self.0, &mut sender);
-        mem::swap(&mut self.1, &mut receiver);
+        let sender = unsafe { ptr::read(&(this).0 as *const _) };
+        let receiver = unsafe { ptr::read(&(this).1 as *const _) };
 
         drop(sender);
         drop(receiver); // drop them
+    }
+}
 
-        // Ensure Chan destructors don't run so that we don't panic
-        // This also ensures that the uninitialized values don't get
-        // read at any point
-        mem::forget(self);
+impl<E, P> Chan<E, P> {
+    unsafe fn cast<E2, P2>(self) -> Chan<E2, P2> {
+        let this = mem::ManuallyDrop::new(self);
+        Chan(ptr::read(&(this).0 as *const _), ptr::read(&(this).1 as *const _), PhantomData)
     }
 }
 
@@ -219,7 +210,7 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Send<A, P>> {
     pub fn send(self, v: A) -> Chan<E, P> {
         unsafe {
             write_chan(&self, v);
-            transmute(self)
+            self.cast()
         }
     }
 }
@@ -231,7 +222,7 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Recv<A, P>> {
     pub fn recv(self) -> (Chan<E, P>, A) {
         unsafe {
             let v = read_chan(&self);
-            (transmute(self), v)
+            (self.cast(), v)
         }
     }
 
@@ -240,7 +231,7 @@ impl<E, P, A: marker::Send + 'static> Chan<E, Recv<A, P>> {
     pub fn try_recv(self) -> Result<(Chan<E, P>, A), Self> {
         unsafe {
             if let Some(v) = try_read_chan(&self) {
-                Ok((transmute(self), v))
+                Ok((self.cast(), v))
             } else {
                 Err(self)
             }
@@ -254,7 +245,7 @@ impl<E, P, Q> Chan<E, Choose<P, Q>> {
     pub fn sel1(self) -> Chan<E, P> {
         unsafe {
             write_chan(&self, true);
-            transmute(self)
+            self.cast()
         }
     }
 
@@ -263,7 +254,7 @@ impl<E, P, Q> Chan<E, Choose<P, Q>> {
     pub fn sel2(self) -> Chan<E, Q> {
         unsafe {
             write_chan(&self, false);
-            transmute(self)
+            self.cast()
         }
     }
 }
@@ -334,9 +325,9 @@ impl<E, P, Q> Chan<E, Offer<P, Q>> {
         unsafe {
             let b = read_chan(&self);
             if b {
-                Left(transmute(self))
+                Left(self.cast())
             } else {
-                Right(transmute(self))
+                Right(self.cast())
             }
         }
     }
@@ -347,9 +338,9 @@ impl<E, P, Q> Chan<E, Offer<P, Q>> {
         unsafe {
             if let Some(b) = try_read_chan(&self) {
                 if b {
-                    Ok(Left(transmute(self)))
+                    Ok(Left(self.cast()))
                 } else {
-                    Ok(Right(transmute(self)))
+                    Ok(Right(self.cast()))
                 }
             } else {
                 Err(self)
@@ -363,7 +354,7 @@ impl<E, P> Chan<E, Rec<P>> {
     /// top of the environment stack.
     #[must_use]
     pub fn enter(self) -> Chan<(P, E), P> {
-        unsafe { transmute(self) }
+        unsafe { self.cast() }
     }
 }
 
@@ -371,7 +362,7 @@ impl<E, P> Chan<(P, E), Var<Z>> {
     /// Recurse to the environment on the top of the environment stack.
     #[must_use]
     pub fn zero(self) -> Chan<(P, E), P> {
-        unsafe { transmute(self) }
+        unsafe { self.cast() }
     }
 }
 
@@ -379,7 +370,7 @@ impl<E, P, N> Chan<(P, E), Var<S<N>>> {
     /// Pop the top environment from the environment stack.
     #[must_use]
     pub fn succ(self) -> Chan<E, Var<N>> {
-        unsafe { transmute(self) }
+        unsafe { self.cast() }
     }
 }
 
@@ -430,7 +421,7 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
 /// The type parameter T is a return type, ie we store a value of some type T
 /// that is returned in case its associated channels is selected on `wait()`
 pub struct ChanSelect<'c> {
-    receivers: Vec<&'c Receiver<Box<u8>>>,
+    receivers: Vec<&'c Receiver<*mut u8>>,
 }
 
 impl<'c> ChanSelect<'c> {
