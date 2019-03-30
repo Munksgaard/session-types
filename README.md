@@ -19,7 +19,7 @@ Add the following dependency to your Cargo manifest...
 
 ```toml
 [dependencies]
-session_types = "0.2.0"
+session_types = "0.3.1"
 ```
 
 ...and see the [docs](https://docs.rs/session_types/) for how to use it.

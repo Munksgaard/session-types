@@ -1,6 +1,6 @@
 [package]
 name = "session_types"
-version = "0.3.0"
+version = "0.3.1"
 authors = [ "Philip Munksgaard <pmunksgaard@gmail.com>"
           , "Thomas Bracht Laumann Jespersen <laumann.thomas@gmail.com>"
           ]
