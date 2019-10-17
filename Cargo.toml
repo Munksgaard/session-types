@@ -13,8 +13,8 @@ keywords = ["session", "types", "channels", "concurrency", "communication"]
 license = "MIT"
 
 [dependencies]
-crossbeam-channel = "0.3.3"
+crossbeam-channel = "0.3.9"
 
 [dev-dependencies]
-compiletest_rs = { version = "0.3.16", features = ["stable"] }
-rand = "0.5.5"
+compiletest_rs = { version = "0.3.24", features = ["stable"] }
+rand = "0.7.2"
