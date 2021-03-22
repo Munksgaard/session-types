@@ -7,7 +7,7 @@ Using this library, you can implement **bi-directional process communication**
 with compile-time assurance that neither party will violate the communication
 protocol.
 
-[![Build Status](https://travis-ci.org/Munksgaard/session-types.svg?branch=master)](https://travis-ci.org/Munksgaard/session-types) [![Cargo](https://img.shields.io/crates/v/session_types.svg)](https://crates.io/crates/session_types) [![Documentation](https://docs.rs/session_types/badge.svg)](https://docs.rs/session_types)
+[![Rust](https://github.com/Munksgaard/session-types/actions/workflows/rust.yml/badge.svg)](https://github.com/Munksgaard/session-types/actions/workflows/rust.yml) [![Cargo](https://img.shields.io/crates/v/session_types.svg)](https://crates.io/crates/session_types) [![Documentation](https://docs.rs/session_types/badge.svg)](https://docs.rs/session_types)
 
 ## Getting started
 
