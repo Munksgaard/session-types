@@ -62,9 +62,9 @@
 #![cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
 extern crate crossbeam_channel;
 
-use std::{marker, mem, ptr};
-use std::thread::spawn;
 use std::marker::PhantomData;
+use std::thread::spawn;
+use std::{marker, mem, ptr};
 
 use std::collections::HashMap;
 
@@ -199,7 +199,11 @@ impl<E> Chan<E, Eps> {
 impl<E, P> Chan<E, P> {
     unsafe fn cast<E2, P2>(self) -> Chan<E2, P2> {
         let this = mem::ManuallyDrop::new(self);
-        Chan(ptr::read(&(this).0 as *const _), ptr::read(&(this).1 as *const _), PhantomData)
+        Chan(
+            ptr::read(&(this).0 as *const _),
+            ptr::read(&(this).1 as *const _),
+            PhantomData,
+        )
     }
 }
 
@@ -301,7 +305,8 @@ impl<Z, A, B, C, D, E, F> Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, Choose
 
 /// Convenience function.
 impl<Z, A, B, C, D, E, F, G>
-    Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, Choose<E, Choose<F, G>>>>>>> {
+    Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, Choose<E, Choose<F, G>>>>>>>
+{
     #[must_use]
     pub fn skip6(self) -> Chan<Z, G> {
         self.sel2().sel2().sel2().sel2().sel2().sel2()
@@ -310,7 +315,8 @@ impl<Z, A, B, C, D, E, F, G>
 
 /// Convenience function.
 impl<Z, A, B, C, D, E, F, G, H>
-    Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, Choose<E, Choose<F, Choose<G, H>>>>>>>> {
+    Chan<Z, Choose<A, Choose<B, Choose<C, Choose<D, Choose<E, Choose<F, Choose<G, H>>>>>>>>
+{
     #[must_use]
     pub fn skip7(self) -> Chan<Z, H> {
         self.sel2().sel2().sel2().sel2().sel2().sel2().sel2()
@@ -405,7 +411,6 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
 
         let id = sel.ready();
 
-
         id
     };
     map.remove(&id).unwrap()
@@ -426,7 +431,9 @@ pub struct ChanSelect<'c> {
 
 impl<'c> ChanSelect<'c> {
     pub fn new() -> ChanSelect<'c> {
-        ChanSelect { receivers: Vec::new() }
+        ChanSelect {
+            receivers: Vec::new(),
+        }
     }
 
     /// Add a channel whose next step is `Recv`
@@ -480,7 +487,7 @@ where
     F1: Fn(Chan<(), P>) + marker::Send + 'static,
     F2: Fn(Chan<(), P::Dual>) + marker::Send,
     P: HasDual + marker::Send + 'static,
-    P::Dual: HasDual + marker::Send + 'static
+    P::Dual: HasDual + marker::Send + 'static,
 {
     let (c1, c2) = session_channel();
     let t = spawn(move || srv(c1));

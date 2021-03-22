@@ -2,7 +2,6 @@
 ///
 /// This example demonstrates how we can use traits to send values through a
 /// channel without actually knowing the type of the value.
-
 extern crate session_types;
 use session_types::*;
 

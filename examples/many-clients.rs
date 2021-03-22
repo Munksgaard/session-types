@@ -2,9 +2,9 @@
 extern crate rand;
 extern crate session_types;
 
+use rand::random;
 use session_types::*;
 use std::thread::spawn;
-use rand::random;
 
 type Server = Recv<u8, Choose<Send<u8, Eps>, Eps>>;
 type Client = <Server as HasDual>::Dual;
@@ -26,7 +26,6 @@ type ChanChan = Offer<Eps, Recv<Chan<(), Server>, Var<Z>>>;
 ///
 /// When the server is asked to quit, it returns how many connections were handled
 fn server(rx: Chan<(), Rec<ChanChan>>) -> usize {
-
     let mut count = 0;
     let mut c = rx.enter();
     loop {

@@ -18,7 +18,7 @@ fn chan_select_hselect() {
     let (tcs, rcs) = session_channel();
     let (tcu, rcu) = session_channel();
 
-    let receivers = vec!(rcs, rcu);
+    let receivers = vec![rcs, rcu];
 
     tcs.send(1u64).close();
 
@@ -30,13 +30,11 @@ fn chan_select_hselect() {
 
     tcu.send(2u64).close();
 
-    rest
-        .drain(..)
-        .for_each(|r| {
-            let (to_close, received) = r.recv();
-            assert_eq!(received, 2u64);
-            to_close.close()
-        });
+    rest.drain(..).for_each(|r| {
+        let (to_close, received) = r.recv();
+        assert_eq!(received, 2u64);
+        to_close.close()
+    });
 }
 
 #[test]
@@ -55,7 +53,7 @@ fn chan_select_simple() {
         sel.add_recv(&rcs); // Assigned 0
         sel.add_recv(&rcu); // Assigned 1
         sel.wait() // Destroys the ChanSelect, releases references to
-        // rcs and rcu
+                   // rcs and rcu
     };
 
     assert_eq!(0, index);
