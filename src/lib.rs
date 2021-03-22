@@ -59,7 +59,8 @@
 //!     connect(srv, cli);
 //! }
 //! ```
-#![cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::double_must_use))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::type_complexity))]
 extern crate crossbeam_channel;
 
 use std::marker::PhantomData;
@@ -395,7 +396,7 @@ pub fn hselect<E, P, A>(
 
 /// An alternative version of homogeneous select, returning the index of the Chan
 /// that is ready to receive.
-pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
+pub fn iselect<E, P, A>(chans: &[Chan<E, Recv<A, P>>]) -> usize {
     let mut map = HashMap::new();
 
     let id = {
@@ -409,9 +410,7 @@ pub fn iselect<E, P, A>(chans: &Vec<Chan<E, Recv<A, P>>>) -> usize {
             handles.push(handle);
         }
 
-        let id = sel.ready();
-
-        id
+        sel.ready()
     };
     map.remove(&id).unwrap()
 }
@@ -466,6 +465,16 @@ impl<'c> ChanSelect<'c> {
     /// How many channels are there in the structure?
     pub fn len(&self) -> usize {
         self.receivers.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.receivers.is_empty()
+    }
+}
+
+impl<'c> Default for ChanSelect<'c> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
