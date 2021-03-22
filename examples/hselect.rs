@@ -6,7 +6,7 @@ fn main() {
     let (tcs, rcs) = session_channel();
     let (tcu, rcu) = session_channel();
 
-    let receivers = vec!(rcs, rcu);
+    let receivers = vec![rcs, rcu];
 
     tcs.send("Hello, World from TCS!".to_string()).close();
 
@@ -18,11 +18,9 @@ fn main() {
 
     tcu.send("Hello, World from TCU!".to_string()).close();
 
-    rest
-        .drain(..)
-        .for_each(|r| {
-            let (to_close, s) = r.recv();
-            println!("Also got this: \"{}\"", s);
-            to_close.close()
-        });
+    rest.drain(..).for_each(|r| {
+        let (to_close, s) = r.recv();
+        println!("Also got this: \"{}\"", s);
+        to_close.close()
+    });
 }

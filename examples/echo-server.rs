@@ -11,7 +11,7 @@ fn srv(c: Chan<(), Rec<Srv>>) {
     let mut c = c.enter();
 
     loop {
-        c = offer!{ c,
+        c = offer! { c,
             CLOSE => {
                 println!("Closing server.");
                 c.close();

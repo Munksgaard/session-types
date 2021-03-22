@@ -18,7 +18,7 @@ fn upcase(chan: Chan<(), Rec<Upcase>>) {
         println!("upcase: tick!");
         let mut poll = true;
         while poll {
-            let result = try_offer!{ chan,
+            let result = try_offer! { chan,
                 ACHAR => {
                     let (chan, ch) = chan.recv();
                     println!("{:?}", ch.to_uppercase().next().unwrap());

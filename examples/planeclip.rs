@@ -11,8 +11,8 @@ extern crate session_types;
 
 use session_types::*;
 
-use rand::{random, Rng};
 use rand::distributions::{Distribution, Standard};
+use rand::{random, Rng};
 
 use std::thread::spawn;
 
@@ -30,12 +30,7 @@ struct Plane(f64, f64, f64, f64);
 
 impl Distribution<Plane> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Plane {
-        Plane(
-            rng.gen(),
-            rng.gen(),
-            rng.gen(),
-            rng.gen(),
-        )
+        Plane(rng.gen(), rng.gen(), rng.gen(), rng.gen())
     }
 }
 
@@ -162,14 +157,8 @@ fn normalize_plane(Plane(a, b, c, d): Plane) -> Plane {
 }
 
 fn bench(n: usize, m: usize) {
-    let points = (0..n)
-        .map(|_| random())
-        .map(normalize_point)
-        .collect();
-    let planes = (0..m)
-        .map(|_| random())
-        .map(normalize_plane)
-        .collect();
+    let points = (0..n).map(|_| random()).map(normalize_point).collect();
+    let planes = (0..m).map(|_| random()).map(normalize_plane).collect();
 
     let points = clipmany(planes, points);
     println!("{}", points.len());

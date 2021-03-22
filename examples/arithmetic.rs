@@ -25,7 +25,7 @@ type Srv = Offer<
 fn server(c: Chan<(), Rec<Srv>>) {
     let mut c = c.enter();
     loop {
-        c = offer!{ c,
+        c = offer! { c,
             CLOSE => {
                 c.close();
                 return
@@ -76,10 +76,8 @@ fn neg_client<R, S>(c: Chan<(), Rec<NegCli<R, S>>>) {
     c.zero().sel1().close();
 }
 
-type SqrtCli<R, S, T> = Choose<
-    Eps,
-    Choose<R, Choose<S, Choose<Send<f64, Offer<Recv<f64, Var<Z>>, Var<Z>>>, T>>>,
->;
+type SqrtCli<R, S, T> =
+    Choose<Eps, Choose<R, Choose<S, Choose<Send<f64, Offer<Recv<f64, Var<Z>>, Var<Z>>>, T>>>>;
 
 fn sqrt_client<R, S, T>(c: Chan<(), Rec<SqrtCli<R, S, T>>>) {
     match c.enter().skip3().sel1().send(42.0).offer() {
@@ -112,7 +110,6 @@ fn fn_client<R, S, T>(c: Chan<(), Rec<PrimeCli<R, S, T>>>) {
     c.zero().sel1().close();
 }
 
-
 // `ask_neg` and `get_neg` use delegation, that is, sending a channel over
 // another channel.
 
@@ -121,7 +118,6 @@ fn fn_client<R, S, T>(c: Chan<(), Rec<PrimeCli<R, S, T>>>) {
 // integer and prints it.
 
 type AskNeg<R, S> = Choose<Eps, Choose<R, Choose<Send<i64, Recv<i64, Var<Z>>>, S>>>;
-
 
 fn ask_neg<R: std::marker::Send + 'static, S: std::marker::Send + 'static>(
     c1: Chan<(), Rec<AskNeg<R, S>>>,
