@@ -441,12 +441,12 @@ impl<'c> ChanSelect<'c> {
     /// is borrowed here (by virtue of borrow checking and lifetimes).
     pub fn add_recv<E, P, A: marker::Send>(&mut self, chan: &'c Chan<E, Recv<A, P>>) {
         let &Chan(_, ref rx, _) = chan;
-        let _ = self.receivers.push(rx);
+        self.receivers.push(rx);
     }
 
     pub fn add_offer<E, P, Q>(&mut self, chan: &'c Chan<E, Offer<P, Q>>) {
         let &Chan(_, ref rx, _) = chan;
-        let _ = self.receivers.push(rx);
+        self.receivers.push(rx);
     }
 
     /// Find a Receiver (and hence a Chan) that is ready to receive.
