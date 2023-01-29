@@ -82,17 +82,15 @@ pub struct Chan<E, P>(Sender<*mut u8>, Receiver<*mut u8>, PhantomData<(E, P)>);
 
 unsafe impl<E: marker::Send, P: marker::Send> marker::Send for Chan<E, P> {}
 
-unsafe fn write_chan<A: marker::Send + 'static, E, P>(&Chan(ref tx, _, _): &Chan<E, P>, x: A) {
+unsafe fn write_chan<A: marker::Send + 'static, E, P>(Chan(tx, _, _): &Chan<E, P>, x: A) {
     tx.send(Box::into_raw(Box::new(x)) as *mut _).unwrap()
 }
 
-unsafe fn read_chan<A: marker::Send + 'static, E, P>(&Chan(_, ref rx, _): &Chan<E, P>) -> A {
+unsafe fn read_chan<A: marker::Send + 'static, E, P>(Chan(_, rx, _): &Chan<E, P>) -> A {
     *Box::from_raw(rx.recv().unwrap() as *mut A)
 }
 
-unsafe fn try_read_chan<A: marker::Send + 'static, E, P>(
-    &Chan(_, ref rx, _): &Chan<E, P>,
-) -> Option<A> {
+unsafe fn try_read_chan<A: marker::Send + 'static, E, P>(Chan(_, rx, _): &Chan<E, P>) -> Option<A> {
     match rx.try_recv() {
         Ok(a) => Some(*Box::from_raw(a as *mut A)),
         Err(_) => None,
@@ -404,7 +402,7 @@ pub fn iselect<E, P, A>(chans: &[Chan<E, Recv<A, P>>]) -> usize {
         let mut handles = Vec::with_capacity(chans.len()); // collect all the handles
 
         for (i, chan) in chans.iter().enumerate() {
-            let &Chan(_, ref rx, _) = chan;
+            let Chan(_, rx, _) = chan;
             let handle = sel.recv(rx);
             map.insert(handle, i);
             handles.push(handle);
@@ -440,12 +438,12 @@ impl<'c> ChanSelect<'c> {
     /// Once a channel has been added it cannot be interacted with as long as it
     /// is borrowed here (by virtue of borrow checking and lifetimes).
     pub fn add_recv<E, P, A: marker::Send>(&mut self, chan: &'c Chan<E, Recv<A, P>>) {
-        let &Chan(_, ref rx, _) = chan;
+        let Chan(_, rx, _) = chan;
         self.receivers.push(rx);
     }
 
     pub fn add_offer<E, P, Q>(&mut self, chan: &'c Chan<E, Offer<P, Q>>) {
-        let &Chan(_, ref rx, _) = chan;
+        let Chan(_, rx, _) = chan;
         self.receivers.push(rx);
     }
 
