@@ -73,3 +73,14 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
+
+  rudra:
+    # Run Rudra
+    name: Run Rudra
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Run Rudra
+        uses: sslab-gatech/Rudra@master
